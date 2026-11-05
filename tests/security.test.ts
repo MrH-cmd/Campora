@@ -27,7 +27,7 @@ beforeAll(async () => {
 }, 60000);
 
 const cart = (uid: string, lid: string, q = 1) => asSystem((db) => db.run("insert into cart_items(user_id,listing_id,quantity) values ($1,$2,$3) on conflict (user_id,listing_id) do update set quantity=$3", [uid, lid, q]));
-const pickup = { paymentMethod: "pay_on_pickup" as const, pickupPoint: "Cafeteria 1" };
+const pickup = { paymentMethod: "pay_on_pickup" as const, pickupPoint: "Cafeteria 1", pickups: {} };
 
 describe("row level security", () => {
   it("is enabled on every table", async () => {

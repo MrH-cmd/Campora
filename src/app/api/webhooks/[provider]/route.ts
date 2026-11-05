@@ -1,5 +1,6 @@
 import { asSystem } from "@/lib/db";
 import { providers, type ProviderName } from "@/lib/payments/providers";
+import { settlePayout } from "@/lib/payments/payouts";
 import { settleTransaction } from "@/lib/payments/settle";
 
 export async function POST(req: Request, { params }: { params: Promise<{ provider: string }> }) {
@@ -12,7 +13,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ provide
   const fresh = await asSystem((db) => db.run(
     "insert into webhook_events(provider,event_id,payload) values ($1,$2,$3) on conflict do nothing", [name, hit.eventId, raw]));
   if (fresh && hit.reference) {
-    try { await settleTransaction(hit.reference); }
+    try { if (hit.event?.startsWith("transfer.")) await settlePayout(hit.reference); else await settleTransaction(hit.reference); }
     catch (e) {
       // Let the provider retry: forget the event so the retry isn't skipped.
       console.error("Webhook settle failed", e);

@@ -36,6 +36,17 @@ export async function saveImage(file: File, folder: string, ownerId: string, isP
   return path;
 }
 
+/** Student documents: images or PDF, private, up to 5 MB. */
+export async function saveDocument(file: File, ownerId: string) {
+  const head = Buffer.from(await file.slice(0, 5).arrayBuffer());
+  if (head.toString() !== "%PDF-") return saveImage(file, "student-ids", ownerId, true);
+  if (file.size > MAX_BYTES) throw new ActionError("Documents must be 5 MB or smaller.");
+  const data = Buffer.from(await file.arrayBuffer());
+  const path = `private/student-ids/${randomUUID()}.pdf`;
+  await asSystem((db) => db.run("insert into file_blobs(path, content_type, data, is_private, owner_id) values ($1,'application/pdf',$2,true,$3)", [path, data, ownerId]));
+  return path;
+}
+
 export async function readFile(path: string) {
   const row = await asSystem((db) => db.one<{ content_type: string; data: Buffer; is_private: boolean; owner_id: string | null }>(
     "select content_type, data, is_private, owner_id from file_blobs where path = $1", [path]));

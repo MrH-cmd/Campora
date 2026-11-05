@@ -3,12 +3,14 @@ import { saveBank, saveStorefront, sellerContext } from "@/app/actions/seller";
 import { Field, Form, ImagePicker, Submit } from "@/components/form";
 import { Card, PageHead } from "@/components/ui";
 import { asUser } from "@/lib/db";
+import { transfers } from "@/lib/payments/providers";
 
 export const metadata = { title: "Storefront" };
 export default async function Storefront() {
   const { user, store: s, plan } = await sellerContext();
   const profile = await asUser(user.id, (db) => db.one("select * from seller_profiles where user_id=$1", [user.id]));
   const custom = plan.customization_level;
+  const banks = transfers.configured() ? await transfers.banks().catch(() => []) : [];
   return (
     <div className="max-w-2xl space-y-4">
       <PageHead title={s ? "Your storefront" : "Set up your storefront"} sub={s ? undefined : "This is the page buyers see."} action={s && <Link className="font-semibold text-palm-deep underline" href={`/store/${s.slug}`}>View public page</Link>} />
@@ -40,9 +42,17 @@ export default async function Storefront() {
       <Card>
         <h2 className="font-bold">Payout account</h2>
         <Form action={saveBank} className="mt-2 space-y-3">
-          <Field label="Bank" name="bank_name" defaultValue={profile?.bank_name ?? ""} />
+          {banks.length ? (
+            <Field label="Bank" name="bank_code" as="select" defaultValue={profile?.bank_code ?? ""}>{banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}</Field>
+          ) : (
+            <>
+              <input type="hidden" name="bank_code" value="manual" />
+              <Field label="Bank" name="bank_name" defaultValue={profile?.bank_name ?? ""} />
+              <Field label="Account name" name="account_name" defaultValue={profile?.account_name ?? ""} />
+            </>
+          )}
           <Field label="Account number" name="account_number" inputMode="numeric" defaultValue={profile?.account_number ?? ""} />
-          <Field label="Account name" name="account_name" defaultValue={profile?.account_name ?? ""} />
+          {profile?.account_verified_at && <p className="text-sm text-palm-deep">Confirmed with Paystack: {profile.account_name}</p>}
           <Submit variant="outline">Save payout account</Submit>
         </Form>
       </Card>

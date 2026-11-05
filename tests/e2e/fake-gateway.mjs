@@ -32,6 +32,11 @@ createServer(async (req, res) => {
     const raw = JSON.stringify({ event: "charge.success", data: { id: t.id, reference: t.reference } });
     return json({ raw, sig: createHmac("sha512", SECRET).update(raw).digest("hex") });
   }
+  if (url.pathname === "/bank") return json({ data: [{ name: "Test Bank", code: "058" }] });
+  if (url.pathname === "/bank/resolve") return json({ data: { account_name: "CHIDI STUDENT" } });
+  if (url.pathname === "/transferrecipient") return json({ data: { recipient_code: "RCP_test" } });
+  if (url.pathname === "/transfer") return json({ data: { status: "success", transfer_code: "TRF_test" } });
+  if (url.pathname.startsWith("/transfer/verify/")) return json({ data: { status: "success" } });
   if (url.pathname === "/last") return json([...txns.keys()].pop());
   json({ message: "nope" }, 404);
 }).listen(4010, () => console.log("fake gateway up", APP));

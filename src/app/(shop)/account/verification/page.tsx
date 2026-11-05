@@ -1,5 +1,5 @@
 import { submitIdUpload, submitStudentEmail } from "@/app/actions/auth";
-import { Field, Form, ImagePicker, Submit } from "@/components/form";
+import { Field, Form, Submit } from "@/components/form";
 import { Badge, Card, PageHead, statusTone } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { asUser } from "@/lib/db";
@@ -31,11 +31,13 @@ export default async function Verify() {
           )}
           {methods.includes("id_upload") && (
             <Card>
-              <h2 className="text-lg font-bold">Upload your student ID</h2>
-              <p className="text-sm text-mute">An admin checks it by hand. Only admins can see this photo.</p>
+              <h2 className="text-lg font-bold">Verify Your Student Status</h2>
+              <p className="text-sm text-mute">An admin checks it by hand. Your document stays private and is never shown on your profile or listings.</p>
               <Form action={submitIdUpload} className="mt-3 space-y-3">
+                <Field label="Full name" name="full_name" defaultValue={u.full_name} />
+                <div className="grid grid-cols-2 gap-2"><Field label="Department or faculty" name="department" /><Field label="Level" name="academic_level" placeholder="300" /></div>
                 <Field label="Matric number" name="matric_number" />
-                <label className="block text-sm font-medium">Student ID photo<ImagePicker name="document" max={1} multiple={false} /></label>
+                <label className="block text-sm font-medium">Student ID (photo or PDF, up to 5 MB)<input type="file" name="document" accept="image/jpeg,image/png,image/webp,application/pdf" className="input mt-1" /></label>
                 <Submit variant="outline">Submit for review</Submit>
               </Form>
             </Card>
@@ -45,7 +47,7 @@ export default async function Verify() {
       {d.history.length > 0 && (
         <Card className="mt-4"><h2 className="font-bold">History</h2>
           <ul className="mt-2 divide-y divide-line text-sm">{d.history.map((h) => (
-            <li key={h.id} className="flex items-center justify-between gap-2 py-2"><span>{h.method === "student_email" ? "Student email" : "ID upload"}, {shortDate(h.created_at)}{h.review_note ? `: ${h.review_note}` : ""}</span><Badge tone={statusTone(h.status)}>{h.status}</Badge></li>
+            <li key={h.id} className="flex items-center justify-between gap-2 py-2"><span>{h.method === "student_email" ? "Student email" : "ID upload"}, {shortDate(h.created_at)}{h.review_note ? `: ${h.review_note}` : ""}</span><Badge tone={statusTone(h.status)}>{h.status === "needs_info" ? "more info needed" : h.status}</Badge></li>
           ))}</ul>
         </Card>
       )}

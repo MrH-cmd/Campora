@@ -2,10 +2,12 @@ import { Check } from "lucide-react";
 import { notFound } from "next/navigation";
 import { buyerCancel, openDispute, sendEnquiry, submitReview } from "@/app/actions/shop";
 import { ActionButton, Field, Form, Submit } from "@/components/form";
+import { ServiceTracker } from "@/components/tracker";
 import { Badge, Card, statusTone } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { asUser } from "@/lib/db";
-import { dateTime, naira, ORDER_STATUS_LABEL, PAYMENT_LABEL } from "@/lib/format";
+import { dateTime, naira, ORDER_STATUS_LABEL, PAYMENT_LABEL, shortDate } from "@/lib/format";
+import { loadTracker } from "@/lib/tracker";
 
 const STEPS = ["pending", "accepted", "processing", "ready_for_pickup", "completed"];
 
@@ -22,6 +24,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       events: await db.rows("select * from order_events where order_id=$1 order by created_at", [id]),
       dispute: await db.one("select * from disputes where order_id=$1 order by created_at desc limit 1", [id]),
       refund: await db.one("select * from refunds where order_id=$1 order by created_at desc limit 1", [id]),
+      tracker: await loadTracker(db, id),
     };
   });
   if (!d) notFound();
@@ -54,6 +57,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </Card>
         ) : <Card><p>This order was cancelled.{d.refund ? ` Refund status: ${d.refund.status}.` : ""}</p></Card>}
         <Card>
+          {d.items.some((i) => i.kind === "service") && d.tracker && <div className="mb-4 border-b border-line pb-4"><ServiceTracker orderId={o.id} initial={JSON.parse(JSON.stringify(d.tracker))} /></div>}
           <h2 className="font-bold">Items</h2>
           <ul className="mt-2 divide-y divide-line">
             {d.items.map((i) => (
@@ -70,7 +74,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               </li>
             ))}
           </ul>
-          {Number(o.discount_kobo) > 0 && <p className="flex justify-between text-sm text-palm-deep"><span>Discount</span><span>-{naira(o.discount_kobo)}</span></p>}
+          {Number(o.discount_kobo) > 0 && <p className="flex justify-between text-sm text-palm-deep"><span>Seller code</span><span>-{naira(o.discount_kobo)}</span></p>}
+          {Number(o.campaign_discount_kobo) > 0 && <p className="flex justify-between text-sm text-palm-deep"><span>Promotional discount</span><span>-{naira(o.campaign_discount_kobo)}</span></p>}
+          {Number(o.wallet_credit_kobo) > 0 && <p className="flex justify-between text-sm text-palm-deep"><span>Reward credit</span><span>-{naira(o.wallet_credit_kobo)}</span></p>}
           <p className="mt-2 flex justify-between border-t border-line pt-2 font-semibold"><span>Total</span><span>{naira(o.total_kobo)}</span></p>
         </Card>
       </div>
@@ -84,6 +90,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         )}
         <Card>
           <p className="text-sm text-mute">Pickup point</p><p className="font-medium">{o.pickup_point}</p>
+          {(o.pickup_date || o.pickup_window) && <p className="text-sm">{o.pickup_date ? shortDate(o.pickup_date) : ""} {o.pickup_window}</p>}
+          {o.pickup_instructions && <p className="text-sm text-mute">{o.pickup_instructions}</p>}
           <Form action={sendEnquiry} className="mt-3 space-y-2">
             <input type="hidden" name="storefront_id" value={o.store_id} /><input type="hidden" name="order_id" value={o.id} />
             <Field label={`Message ${o.store}`} name="body" as="textarea" rows={2} placeholder="Arrange your pickup time" />

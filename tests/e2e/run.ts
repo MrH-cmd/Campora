@@ -91,13 +91,14 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     const p = await page(); await login(p, "buyer@campora.test");
     sql("update users set student_status='unverified' where email='buyer@campora.test'");
     await p.goto(`${BASE}/account/verification`);
-    await p.fill("[name=matric_number]", "19CG0001"); await p.setInputFiles("[name=document]", "/tmp/evil.png"); await p.click('button:has-text("Submit for review")'); await p.getByText("Upload a JPG").waitFor();
+    await p.fill("[name=department]", "Computer Science"); await p.fill("[name=academic_level]", "300"); await p.fill("[name=matric_number]", "19CG0001"); await p.setInputFiles("[name=document]", "/tmp/evil.png"); await p.click('button:has-text("Submit for review")'); await p.getByText("Upload a JPG").waitFor();
     await p.setInputFiles("[name=document]", "/tmp/pic.png"); await p.click('button:has-text("Submit for review")'); await toast(p, "Submitted");
     const path = sql("select document_path from student_verifications order by created_at desc limit 1");
     const r = await fetch(`${BASE}/files/${path}`); expect(r.status === 404, "private file public");
     await login(admin, "admin@campora.test");
     expect((await admin.request.get(`${BASE}/files/${path}`)).status() === 200, "admin read");
-    await admin.goto(`${BASE}/admin/verifications`); await admin.getByText("19CG0001").waitFor();
+    await admin.goto(`${BASE}/admin/verifications`); await admin.getByRole("link", { name: "Bisi Afolabi" }).first().click(); await admin.getByText("19CG0001").waitFor();
+    expect((await admin.locator("body").innerText()).includes("Computer Science"), "dept");
     await admin.click('button:has-text("Save decision")'); await toast(admin, "Student verified");
     expect(sql("select student_status from users where email='buyer@campora.test'") === "verified", "status");
   });
@@ -151,7 +152,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await buyer.goto(sql("select '/listing/'||slug from listings where title='Department Shirt'").replace(/^/, BASE));
     await buyer.click('button:has-text("Add to cart")'); await toast(buyer, "Added to cart");
     await buyer.goto(`${BASE}/cart`); await buyer.getByRole("link", { name: "Check out" }).click(); await buyer.waitForURL("**/checkout");
-    await buyer.check('input[value=pay_on_pickup]'); await buyer.screenshot({ path: `${OUT}/checkout.png` });
+    await buyer.waitForTimeout(800); await buyer.check('input[value=pay_on_pickup]'); await buyer.screenshot({ path: `${OUT}/checkout.png` });
     await buyer.click('button:has-text("Place order")'); await buyer.waitForURL("**/account/orders?placed=1");
     await buyer.getByRole("link", { name: /Department Shirt/ }).click(); await buyer.waitForURL(/orders\/[0-9a-f-]+/); orderUrl = buyer.url();
   });
@@ -170,7 +171,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
   await step("online checkout redirects to the provider and only the server marks it paid", async () => {
     await buyer.goto(BASE + sql("select '/listing/'||slug from listings where title='Department Shirt'"));
     await buyer.click('button:has-text("Add to cart")'); await toast(buyer, "Added to cart");
-    await buyer.goto(`${BASE}/checkout`); await buyer.check('input[value="online:paystack"]');
+    await buyer.goto(`${BASE}/checkout`); await buyer.waitForTimeout(800);
     const [req] = await Promise.all([buyer.waitForRequest(/localhost:4010\/pay/, { timeout: 15000 }).catch(() => null), buyer.click('button:has-text("Place order")')]);
     expect(req, "went to provider");
     await buyer.getByText("Payment confirmed").first().waitFor({ timeout: 15000 });
@@ -180,7 +181,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
   await step("visiting the callback with an underpaid transaction grants nothing", async () => {
     await buyer.goto(BASE + sql("select '/listing/'||slug from listings where title='Department Shirt'"));
     await buyer.click('button:has-text("Add to cart")'); await toast(buyer, "Added to cart");
-    await buyer.goto(`${BASE}/checkout`); await buyer.check('input[value="online:paystack"]');
+    await buyer.goto(`${BASE}/checkout`); await buyer.waitForTimeout(800);
     await buyer.route(/localhost:4010\/pay/, (r) => r.continue({ url: r.request().url() + "?underpay=1" }));
     await buyer.click('button:has-text("Place order")'); await buyer.getByText("Payment failed").first().waitFor({ timeout: 15000 });
     await buyer.unroute(/localhost:4010\/pay/);
@@ -190,7 +191,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     const r = await fetch(`${BASE}/api/webhooks/paystack`, { method: "POST", body: "{}", headers: { "x-paystack-signature": "bad" } }); expect(r.status === 401, "bad sig");
     await buyer.goto(BASE + sql("select '/listing/'||slug from listings where title='Department Shirt'"));
     await buyer.click('button:has-text("Add to cart")'); await toast(buyer, "Added to cart");
-    await buyer.goto(`${BASE}/checkout`); await buyer.check('input[value="online:paystack"]');
+    await buyer.goto(`${BASE}/checkout`); await buyer.waitForTimeout(800);
     await buyer.route(/localhost:4010\/pay/, (r) => r.abort()); await buyer.click('button:has-text("Place order")').catch(() => {}); await buyer.waitForTimeout(1500); await buyer.unroute(/localhost:4010\/pay/);
     const ref = await (await fetch("http://localhost:4010/last")).json();
     const before = sql(`select status from transactions where reference='${ref}'`); expect(before === "initiated", before);
@@ -210,11 +211,12 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await newbie.fill("[name=code]", sql(`select pickup_code from orders where id='${id}'`)); await newbie.click('button:has-text("Complete order")'); await newbie.getByText("This order is closed").waitFor();
     expect(sql(`select commission_kobo||'/'||net_kobo from commissions where order_id='${id}'`) === "25000/475000", "5% of 5000");
     await newbie.goto(`${BASE}/seller/storefront`);
-    await newbie.fill("[name=bank_name]", "Test Bank"); await newbie.fill("[name=account_number]", "0123456789"); await newbie.fill("[name=account_name]", "Chidi Student"); await newbie.click('button:has-text("Save payout account")'); await toast(newbie, "Payout account saved");
+    await newbie.fill("[name=account_number]", "0123456789"); await newbie.click('button:has-text("Save payout account")'); await toast(newbie, "Account confirmed");
     await newbie.goto(`${BASE}/seller/earnings`); await newbie.fill("[name=amount]", "99999"); await newbie.click('button:has-text("Request payout")'); await newbie.getByText("more than your available").waitFor();
-    await newbie.fill("[name=amount]", "4750"); await newbie.click('button:has-text("Request payout")'); await toast(newbie, "Payout requested");
+    await newbie.fill("[name=amount]", "4500"); await newbie.click('button:has-text("Request payout")'); await toast(newbie, "Payout requested");
     await newbie.screenshot({ path: `${OUT}/earnings.png` });
-    await admin.goto(`${BASE}/admin/finance?tab=payouts`); await admin.fill("[name=bank_reference]", "TRF123"); await admin.click('button:has-text("Record")'); await toast(admin, "recorded as paid");
+    await admin.goto(`${BASE}/admin/finance?tab=payouts`); await admin.click('button:has-text("Send with Paystack")'); await admin.click('button:has-text("Yes, continue")'); await toast(admin, "Transfer sent");
+    expect(sql("select status from seller_payouts limit 1") === "paid", "payout paid after verify");
   });
   await step("rejecting a paid order queues a refund that goes to the provider", async () => {
     await newbie.goto(`${BASE}/seller/orders?status=pending`); await newbie.getByRole("link", { name: /CP-/ }).first().click(); await newbie.waitForURL(/seller\/orders\/.+/);
@@ -235,7 +237,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
   await step("discount code changes the server total", async () => {
     await buyer.goto(BASE + sql("select '/listing/'||slug from listings where title='Department Shirt'"));
     await buyer.click('button:has-text("Add to cart")'); await toast(buyer, "Added to cart");
-    await buyer.goto(`${BASE}/checkout`); await buyer.check('input[value=pay_on_pickup]'); await buyer.fill("[name=coupon]", "WELCOME10"); await buyer.click('button:has-text("Place order")'); await buyer.waitForURL("**/orders?placed=1");
+    await buyer.goto(`${BASE}/checkout`); await buyer.waitForTimeout(800); await buyer.check('input[value=pay_on_pickup]'); await buyer.fill("[name=coupon]", "WELCOME10"); await buyer.click('button:has-text("Apply")'); await buyer.getByText("Code applied").waitFor(); await buyer.click('button:has-text("Place order")'); await buyer.waitForURL("**/orders?placed=1");
     expect(sql("select total_kobo from orders order by created_at desc limit 1") === "450000", "10% off");
   });
   await step("Odogwu credits buy a boost that shows as Sponsored", async () => {
@@ -314,7 +316,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await p.fill("[name=email]", "bowl@campora.test"); await p.fill("[name=password]", PW); await p.click('button:has-text("Log in")'); await p.waitForTimeout(1500); expect(p.url().startsWith(BASE), p.url());
   });
   await step("every link on every buyer, seller and admin page works", async () => {
-    for (const [p, starts] of [[anon, ["/", "/pricing", "/search"]], [buyer, ["/", "/account", "/account/orders", "/messages", "/notifications", "/cart"]], [newbie, ["/seller", "/seller/orders", "/seller/listings", "/seller/storefront", "/seller/analytics", "/seller/promotions", "/seller/boosts", "/seller/earnings", "/seller/billing"]], [admin, ["/admin", "/admin/users", "/admin/verifications", "/admin/sellers", "/admin/listings", "/admin/categories", "/admin/reports", "/admin/disputes", "/admin/finance", "/admin/settings", "/admin/logs"]]] as [Page, string[]][]) {
+    for (const [p, starts] of [[anon, ["/", "/pricing", "/search"]], [buyer, ["/", "/account", "/account/orders", "/account/rewards", "/messages", "/notifications", "/cart"]], [newbie, ["/seller", "/seller/orders", "/seller/listings", "/seller/storefront", "/seller/analytics", "/seller/promotions", "/seller/boosts", "/seller/earnings", "/seller/billing", "/seller/pickup", "/seller/services"]], [admin, ["/admin", "/admin/users", "/admin/verifications", "/admin/sellers", "/admin/listings", "/admin/categories", "/admin/reports", "/admin/disputes", "/admin/finance", "/admin/settings", "/admin/logs", "/admin/discounts", "/admin/referrals", "/admin/earnings"]]] as [Page, string[]][]) {
       const seen = new Set<string>();
       for (const s of starts) {
         await p.goto(BASE + s); await p.waitForTimeout(250);
@@ -329,6 +331,59 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await admin.goto(`${BASE}/admin/settings`);
     const dead = await admin.evaluate(() => [...document.querySelectorAll("button")].filter((b) => (b as HTMLButtonElement).type !== "submit" && !Object.keys(b).some((k) => k.startsWith("__reactProps"))).map((b) => b.textContent));
     expect(dead.length === 0, "dead: " + dead.join());
+  });
+  await step("admin creates a discount in the dashboard and a buyer sees it at checkout with the commission note", async () => {
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin/discounts/new`);
+    await admin.fill("[name=name]", "Campus sale"); await admin.fill("[name=code]", "CAMPUS20"); await admin.fill("[name=value]", "20"); await admin.fill("[name=maximum_discount]", "3000");
+    await admin.click('button[value=active]'); await admin.waitForURL("**/admin/discounts?tab=all"); await admin.getByText("CAMPUS20").first().waitFor();
+    await buyer.bringToFront(); await buyer.goto(BASE + sql("select '/listing/'||slug from listings where title='Department Shirt'")); await buyer.waitForTimeout(800);
+    await buyer.click('button:has-text("Add to cart")'); await toast(buyer, "Added to cart");
+    await buyer.goto(`${BASE}/checkout`); await buyer.waitForTimeout(800);
+    await buyer.fill("[name=coupon]", "CAMPUS20"); await buyer.click('button:has-text("Apply")'); await buyer.getByText("Code applied").waitFor();
+    expect((await buyer.getByTestId("total").innerText()).includes("4,000"), "total after 20%");
+    await buyer.getByText("not added to your total").waitFor(); await buyer.screenshot({ path: `${OUT}/checkout-discount.png` });
+    await buyer.click('button:has-text("Place order")'); await buyer.getByText("Payment confirmed").first().waitFor({ timeout: 15000 });
+    expect(sql("select count(*) from discount_redemptions where status='confirmed'") === "1", "redemption confirmed");
+  });
+  await step("referral: admin switches it on, friend joins by link, rewards page shows it", async () => {
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin/referrals`); await admin.check("[name=enabled]"); await admin.click('button:has-text("Save settings")'); await toast(admin, "Referral settings saved");
+    await buyer.bringToFront(); await buyer.goto(`${BASE}/account/rewards`); const code = sql("select referral_code from users where email='buyer@campora.test'"); await buyer.getByText(code).first().waitFor(); await buyer.screenshot({ path: `${OUT}/rewards.png` });
+    const p = await page(); await p.goto(`${BASE}/register?ref=${code}`);
+    await p.fill("[name=full_name]", "Friend One"); await p.fill("[name=email]", "friend@example.com"); await p.fill("[name=password]", PW); await p.click('button:has-text("Create account")'); await p.waitForURL("**/account**");
+    expect(sql("select status from referrals limit 1") === "pending_purchase", "referral saved");
+    await p.goto(`${BASE}/admin/referrals`); await p.waitForURL((u) => !u.pathname.startsWith("/admin"));
+    await admin.goto(`${BASE}/admin/referrals`); await admin.getByText("Friend One").waitFor();
+  });
+  await step("seller adds pickup points; service booking gets live tracking", async () => {
+    await newbie.bringToFront(); await newbie.goto(`${BASE}/seller/pickup`); await newbie.fill("[name=name]", "Joseph Hall gate"); await newbie.fill("[name=time_window]", "4pm to 6pm"); await newbie.click('button:has-text("Add pickup point")'); await toast(newbie, "Pickup point saved");
+    sql("update users set status='active' where email='glow@campora.test'; update storefronts set status='active' where status='suspended'");
+    const svc = sql("select l.slug from listings l join services s on s.listing_id=l.id join storefronts f on f.id=l.storefront_id join users u on u.id=f.owner_id where s.price_type='fixed' and u.email='glow@campora.test' limit 1");
+    await buyer.bringToFront(); await buyer.goto(`${BASE}/listing/${svc}`); await buyer.waitForTimeout(800); await buyer.click('button:has-text("Book this service")'); await toast(buyer, "Added to cart");
+    await buyer.goto(`${BASE}/checkout`); await buyer.waitForTimeout(800); await buyer.check('input[value=pay_on_pickup]'); await buyer.click('button:has-text("Place order")'); await buyer.waitForURL("**/orders?placed=1");
+    const id = sql("select id from orders order by created_at desc limit 1"); const owner = sql(`select u.email from orders o join storefronts s on s.id=o.storefront_id join users u on u.id=s.owner_id where o.id='${id}'`);
+    await buyer.goto(`${BASE}/account/orders/${id}`); await buyer.getByText("Track your service").waitFor();
+    const s = await page(); await login(s, owner); await s.bringToFront(); await s.goto(`${BASE}/seller/orders/${id}`); await s.waitForTimeout(800);
+    await s.click('button:has-text("Accept order")'); await s.getByText("Start processing").waitFor();
+    await s.fill("textarea[name=note], input[name=note]", "Your slot is confirmed"); await s.click('button:has-text("Send update")'); await toast(s, "Update sent");
+    await s.fill("[name=pickup_window]", "5pm"); await s.click('button:has-text("Update pickup")'); await toast(s, "Pickup updated");
+    await buyer.bringToFront(); await buyer.getByText("Your slot is confirmed").first().waitFor({ timeout: 9000 });
+    const other = await page(); await login(other, "bowl@campora.test"); expect((await other.request.get(`${BASE}/api/orders/${id}/tracker`)).status() === 404, "tracker leak");
+    expect((await other.request.post(`${BASE}/api/orders/${id}/location`, { data: { latitude: 1, longitude: 1 } })).status() === 403, "location write");
+  });
+  await step("user deletes account: needs password and DELETE, then is logged out", async () => {
+    const p = await page(); await p.goto(`${BASE}/login`); await p.fill("[name=email]", "friend@example.com"); await p.fill("[name=password]", PW); await p.click('button:has-text("Log in")'); await p.waitForURL(BASE + "/");
+    await p.bringToFront(); await p.goto(`${BASE}/account`); await p.waitForTimeout(800); await p.getByText("I want to delete my account").click();
+    await p.fill('input[name=confirm]', "DELETE"); await p.locator('form:has(input[name=confirm]) input[name=password]').fill("wrong-pass");
+    await p.click('button:has-text("Delete my account")'); await p.click('button:has-text("Yes, continue")'); await p.getByText("password isn't right").waitFor();
+    await p.locator('form:has(input[name=confirm]) input[name=password]').fill(PW); await p.click('button:has-text("Delete my account")'); await p.click('button:has-text("Yes, continue")'); await p.waitForURL("**/login?deleted=1");
+    expect(sql("select count(*) from account_deletion_requests where status='scheduled'") === "1", "scheduled");
+    await p.fill("[name=email]", "friend@example.com"); await p.fill("[name=password]", PW); await p.click('button:has-text("Log in")'); await p.waitForURL(BASE + "/");
+    expect(sql("select count(*) from account_deletion_requests where status='cancelled'") === "1", "cancelled by login");
+  });
+  await step("earnings report and exports are admin-only", async () => {
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin/earnings`); await admin.getByText("Every commission").waitFor();
+    const r = await admin.request.get(`${BASE}/api/admin/export?report=commissions`); expect(r.ok() && (await r.text()).includes("seller_earnings"), "csv");
+    expect((await buyer.request.get(`${BASE}/api/admin/export?report=ledger`)).status() === 403, "buyer export");
   });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 

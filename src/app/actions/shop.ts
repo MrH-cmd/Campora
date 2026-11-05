@@ -7,6 +7,7 @@ import { ActionError, currentUser, rateLimit, requireUser } from "@/lib/auth";
 import { asSystem, asUser } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { changeOrderStatus, placeOrders } from "@/lib/orders";
+import { quote } from "@/lib/pricing";
 
 async function signedIn(next = "/") {
   const u = await currentUser();
@@ -54,15 +55,25 @@ export const toggleFavourite = action(z.object({ listing_id: id.optional(), stor
 });
 
 export const checkout = action(z.object({
-  pay: z.string({ error: "Choose how to pay" }),
-  pickup_point: text(2, 120, "Pickup point"), note: optional(300), coupon: optional(20),
-}), async (d) => {
+  pay: z.string({ error: "Choose how to pay" }), note: optional(300), coupon: optional(30), use_credit: z.string().optional(),
+}), async (d, form) => {
   const u = await signedIn("/checkout");
   const [method, provider] = d.pay.split(":");
   if (method !== "online" && method !== "pay_on_pickup") throw new ActionError("Choose how to pay.");
-  const r = await placeOrders(u, { paymentMethod: method, provider, pickupPoint: d.pickup_point, note: d.note, coupon: d.coupon });
+  const pickups: Record<string, string> = {};
+  for (const [k, v] of form.entries()) if (k.startsWith("pickup_") && typeof v === "string") pickups[k.slice(7)] = v;
+  const r = await placeOrders(u, { paymentMethod: method, provider, pickups, note: d.note, coupon: d.coupon, useCredit: d.use_credit === "on" });
   redirect(r.paymentUrl ?? "/account/orders?placed=1");
 });
+
+/** Live price preview. The same quote() runs again when the order is placed. */
+export async function previewCheckout(input: { code?: string; useCredit?: boolean; online: boolean }) {
+  const u = await signedIn("/checkout");
+  await rateLimit(`quote:${u.id}`, 60, 60);
+  const q = await asSystem((db) => quote(db, u, { code: input.code, useCredit: input.useCredit, online: input.online }));
+  return { originalKobo: q.originalKobo, saleSavingsKobo: q.saleSavingsKobo, couponKobo: q.couponKobo, campaignKobo: q.campaignKobo, creditKobo: q.creditKobo, totalKobo: q.totalKobo, savingsKobo: q.savingsKobo,
+    campaigns: q.campaigns, codeMessage: q.codeMessage, codeValid: q.codeValid, creditAvailable: q.creditAvailable, creditUsable: q.creditUsable };
+}
 
 export const buyerCancel = action(z.object({ order_id: id }), async (d) => {
   const u = await signedIn();

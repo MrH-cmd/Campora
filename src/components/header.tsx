@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, Heart, Home, LayoutGrid, LogOut, Menu, MessageCircle, Package, Search, Shield, ShoppingBag, Store, User, X } from "lucide-react";
+import { Bell, Gift, Heart, Home, LayoutGrid, LogOut, Menu, MessageCircle, Package, Search, Shield, ShoppingBag, Store, User, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -142,6 +142,7 @@ function MenuItems({ role }: { role: string }) {
         : role === "customer" && <Link role="menuitem" className={cls} href="/account/become-seller"><Store size={17} aria-hidden />Start selling</Link>}
       <Link role="menuitem" className={cls} href="/account"><User size={17} aria-hidden />Account</Link>
       <Link role="menuitem" className={cls} href="/account/orders"><Package size={17} aria-hidden />Orders</Link>
+      <Link role="menuitem" className={cls} href="/account/rewards"><Gift size={17} aria-hidden />My Rewards</Link>
       <Link role="menuitem" className={cls} href="/messages"><MessageCircle size={17} aria-hidden />Messages</Link>
       <Link role="menuitem" className={cls} href="/account/favourites"><Heart size={17} aria-hidden />Favourites</Link>
       <form action={logout}><button role="menuitem" className={cls}><LogOut size={17} aria-hidden />Log out</button></form>

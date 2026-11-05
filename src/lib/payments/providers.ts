@@ -3,7 +3,7 @@ import { ActionError } from "../auth";
 
 export type ProviderName = "paystack" | "flutterwave";
 export type Verified = { status: "success" | "failed" | "pending"; amountKobo: number; currency: string; providerReference: string };
-export type WebhookHit = { reference: string; eventId: string };
+export type WebhookHit = { reference: string; eventId: string; event?: string };
 
 export type Provider = {
   name: ProviderName;
@@ -49,8 +49,9 @@ const paystack: Provider = {
     const expected = createHmac("sha512", process.env.PAYSTACK_SECRET_KEY ?? "").update(raw).digest("hex");
     if (sig.length !== expected.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
     const body = JSON.parse(raw);
-    if (body.event !== "charge.success") return { reference: "", eventId: `${body.event}:${body.data?.id}` };
-    return { reference: body.data.reference, eventId: `${body.event}:${body.data.id}` };
+    const eventId = `${body.event}:${body.data?.id ?? body.data?.reference}`;
+    if (body.event === "charge.success" || String(body.event).startsWith("transfer.")) return { reference: body.data.reference, eventId, event: body.event };
+    return { reference: "", eventId, event: body.event };
   },
   async refund({ reference, amountKobo }) {
     const j = await call(`${paystackBase()}/refund`, process.env.PAYSTACK_SECRET_KEY!, {
@@ -92,6 +93,22 @@ const flutterwave: Provider = {
     });
     return String(j.data?.id ?? providerReference);
   },
+};
+
+type Json = Record<string, any>;
+const ps = (path: string, body?: Json) => call(`${paystackBase()}${path}`, process.env.PAYSTACK_SECRET_KEY!, body ? { method: "POST", body: JSON.stringify(body) } : undefined);
+
+/** Paystack transfers: used for seller payouts. */
+export const transfers = {
+  configured: () => !!process.env.PAYSTACK_SECRET_KEY,
+  banks: async () => (await ps("/bank?currency=NGN&perPage=200")).data as { name: string; code: string }[],
+  resolve: async (accountNumber: string, bankCode: string) =>
+    (await ps(`/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`)).data.account_name as string,
+  createRecipient: async (name: string, accountNumber: string, bankCode: string) =>
+    (await ps("/transferrecipient", { type: "nuban", name, account_number: accountNumber, bank_code: bankCode, currency: "NGN" })).data.recipient_code as string,
+  send: async (p: { amountKobo: number; recipient: string; reference: string; reason: string }) =>
+    (await ps("/transfer", { source: "balance", amount: p.amountKobo, recipient: p.recipient, reference: p.reference, reason: p.reason })).data as { status: string; transfer_code: string },
+  verify: async (reference: string) => (await ps(`/transfer/verify/${encodeURIComponent(reference)}`)).data as { status: string },
 };
 
 export const providers: Record<ProviderName, Provider> = { paystack, flutterwave };

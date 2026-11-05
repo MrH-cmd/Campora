@@ -51,3 +51,18 @@ Money flow. Pay-at-pickup orders settle between buyer and seller, so Campora tak
 Daily sweep (`/api/cron/daily`). Cancels unpaid orders after an hour, ends boosts, expires plans, grants monthly credits, and deactivates the oldest listings above a seller's limit.
 
 Adding a future module (events, jobs and so on). Add a migration with RLS, keep rows tied to `university_id`, and add a route group under `src/app`.
+
+## Payments setup (Paystack)
+
+1. In the Paystack dashboard, open Settings, then API Keys & Webhooks.
+2. Add `PAYSTACK_SECRET_KEY` in Vercel. Use `sk_test_...` for testing and `sk_live_...` only after a full test run.
+3. Set the webhook URL to `https://vybemarket.vercel.app/api/webhooks/paystack`.
+4. Enable Transfers on your Paystack account for seller payouts, and keep the balance funded.
+
+Discounts, referral credit, commission, refunds and payouts all use `src/lib/pricing.ts`, `src/lib/wallet.ts`, `src/lib/orders.ts` and `src/lib/referrals.ts`.
+Commission = rate x (sale - discounts the seller funded). Vybe-funded discounts and reward credit never reduce seller earnings.
+On cash orders the commission is recorded as owed and taken from the seller's balance.
+
+## Referral launch
+
+Open Admin, Referrals, check the rewards, tick "Programme on" and save. It stays off until then.

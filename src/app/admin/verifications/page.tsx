@@ -1,34 +1,25 @@
-import { reviewVerification } from "@/app/actions/admin";
-import { Field, Form, Submit } from "@/components/form";
-import { Card, Empty, Img, PageHead } from "@/components/ui";
+import Link from "next/link";
+import { Badge, Empty, PageHead, statusTone, Table, Td } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { asUser } from "@/lib/db";
 import { shortDate } from "@/lib/format";
 
-export const metadata = { title: "Student checks" };
-export default async function V() {
+export const metadata = { title: "Student Verification Management" };
+export default async function V({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab = "pending" } = await searchParams;
   const a = await requireAdmin();
   const rows = await asUser(a.id, (db) => db.rows(
-    `select v.*, u.full_name, u.email, un.short_name from student_verifications v join users u on u.id=v.user_id join universities un on un.id=v.university_id
-     where v.status='pending' and v.method='id_upload' order by v.created_at`));
+    `select v.*, u.full_name account_name, u.email, un.short_name from student_verifications v join users u on u.id=v.user_id join universities un on un.id=v.university_id
+     where ($1='pending' and v.status='pending') or ($1='reviewed' and v.status<>'pending') order by v.created_at desc limit 100`, [tab]));
   return (
     <>
-      <PageHead title="Student checks" sub="Student-email checks confirm themselves. ID uploads wait here." />
-      {rows.length === 0 ? <Empty title="No IDs waiting" /> : <div className="grid gap-3 md:grid-cols-2">{rows.map((v) => (
-        <Card key={v.id}>
-          <p className="font-semibold">{v.full_name}</p><p className="text-sm text-mute">{v.email}, {v.short_name}, matric {v.matric_number}, {shortDate(v.created_at)}</p>
-          <a href={`/files/${v.document_path}`} target="_blank" rel="noreferrer"><Img path={v.document_path} alt="Student ID" className="mt-2 h-44 w-full rounded-lg" /></a>
-          <Form action={reviewVerification} className="mt-2 space-y-2">
-            <input type="hidden" name="id" value={v.id} />
-            <Field label="Note to student" name="note" />
-            <div className="flex gap-2">
-              <label className="flex items-center gap-1 text-sm"><input type="radio" name="decision" value="approved" defaultChecked className="accent-palm" />Approve</label>
-              <label className="flex items-center gap-1 text-sm"><input type="radio" name="decision" value="rejected" className="accent-palm" />Decline</label>
-              <Submit size="sm" className="ml-auto">Save decision</Submit>
-            </div>
-          </Form>
-        </Card>
-      ))}</div>}
+      <PageHead title="Student Verification Management" />
+      <div className="mb-4 flex gap-1">{[["pending", "Pending"], ["reviewed", "Reviewed"]].map(([k, l]) => <Link key={k} href={`/admin/verifications?tab=${k}`} className={`rounded-full px-3.5 py-1.5 text-sm font-medium ${tab === k ? "bg-panel-2 text-white" : "border border-line"}`}>{l}</Link>)}</div>
+      {rows.length === 0 ? <Empty title="Nothing here" /> : (
+        <Table head={["Student", "University", "Department", "Method", "Submitted", "Status"]}>
+          {rows.map((v) => <tr key={v.id}><Td><Link className="font-medium text-palm-deep" href={`/admin/verifications/${v.id}`}>{v.full_name ?? v.account_name}</Link><p className="text-xs text-mute">{v.email}</p></Td><Td>{v.short_name}</Td><Td>{v.department}</Td><Td>{v.method === "id_upload" ? "Document" : "Student email"}</Td><Td>{shortDate(v.created_at)}</Td><Td><Badge tone={statusTone(v.status)}>{v.status}</Badge></Td></tr>)}
+        </Table>
+      )}
     </>
   );
 }

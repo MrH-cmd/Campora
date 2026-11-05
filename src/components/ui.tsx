@@ -47,9 +47,9 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
 }
 
 export const statusTone = (s: string): "neutral" | "green" | "amber" | "red" =>
-  ["completed", "active", "approved", "verified", "paid", "collected", "success", "resolved", "processed", "resolved_buyer", "resolved_seller"].includes(s) ? "green"
+  ["completed", "active", "approved", "verified", "paid", "collected", "success", "resolved", "processed", "confirmed", "reward_issued", "successful", "resolved_buyer", "resolved_seller"].includes(s) ? "green"
   : ["cancelled", "rejected", "removed", "failed", "suspended", "dismissed", "refunded", "expired"].includes(s) ? "red"
-  : ["pending", "pending_review", "requested", "open", "restricted", "awaiting_payment", "initiated", "pay_on_pickup", "pending_payment"].includes(s) ? "amber" : "neutral";
+  : ["pending", "pending_review", "requested", "processing", "needs_info", "resubmit", "review", "pending_purchase", "awaiting_completion", "reserved", "scheduled", "open", "restricted", "awaiting_payment", "initiated", "pay_on_pickup", "pending_payment"].includes(s) ? "amber" : "neutral";
 
 export function Empty({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
   return (

@@ -93,7 +93,7 @@ async function main() {
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id`, [...p.slice(0, 11), p[11], i]);
     if (i === 0) free = r.id;
   }
-  for (const [k, v] of [["commission_bps", 500], ["pay_on_pickup_enabled", true], ["require_listing_review", true]] as const)
+  for (const [k, v] of [["commission_bps", 500], ["pay_on_pickup_enabled", true], ["require_listing_review", true], ["deletion_grace_days", 7], ["selling_requires_student", true]] as const)
     await db.query("insert into platform_settings(key,value) values ($1,$2)", [k, JSON.stringify(v)]);
   const pk = async (name: string, place: string, days: number, credits: number) => (await one("insert into boost_packages(name,placement,duration_days,credit_cost) values ($1,$2,$3,$4) returning id", [name, place, days, credits])).id;
   const homePkg = await pk("Homepage spotlight", "homepage_featured", 7, 2);

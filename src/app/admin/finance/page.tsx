@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { processPayout, processRefund } from "@/app/actions/admin";
+import { checkPayout, processPayout, processRefund, sendPayout } from "@/app/actions/admin";
 import { ActionButton, Field, Form, Submit } from "@/components/form";
 import { Badge, Card, Empty, PageHead, Stat, statusTone, Table, Td } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
@@ -43,7 +43,9 @@ export default async function Finance({ searchParams }: { searchParams: Promise<
         <Card key={p.id}>
           <div className="flex justify-between gap-2"><p className="font-semibold">{p.name}, {naira(p.amount_kobo)}</p><Badge tone={statusTone(p.status)}>{p.status}</Badge></div>
           <p className="text-sm text-mute">{p.bank_snapshot.bank_name}, {p.bank_snapshot.account_number}, {p.bank_snapshot.account_name}</p>
-          {p.status === "requested" && (
+          {p.status === "processing" && <div className="mt-2"><ActionButton action={checkPayout} values={{ id: p.id }}>Check with Paystack</ActionButton></div>}
+          {p.status === "requested" && online.includes("paystack") && <div className="mt-2 flex gap-2"><ActionButton action={sendPayout} values={{ id: p.id }} variant="primary" confirm="Send this payout through Paystack?">Send with Paystack</ActionButton></div>}
+          {p.status === "requested" && !online.includes("paystack") && (
             <Form action={processPayout} className="mt-2 flex flex-wrap items-end gap-2">
               <input type="hidden" name="id" value={p.id} />
               <Field label="Bank transfer reference" name="bank_reference" />

@@ -29,7 +29,7 @@ export const ORDER_STATUS_LABEL: Record<string, string> = {
 };
 
 export const PAYMENT_LABEL: Record<string, string> = {
-  awaiting_payment: "Awaiting payment", paid: "Paid online", pay_on_pickup: "Pay at pickup",
+  awaiting_payment: "Payment pending", paid: "Payment confirmed", pay_on_pickup: "Pay at pickup",
   collected: "Paid at pickup", refunded: "Refunded", failed: "Payment failed",
 };
 

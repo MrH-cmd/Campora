@@ -21,6 +21,7 @@ export default async function C() {
           <Form action={saveCategory} className="flex items-end gap-2">
             <input type="hidden" name="id" value={c.id} /><input type="hidden" name="kind" value={c.kind} />
             <div className="flex-1"><Field label={c.kind === "product" ? "Product category" : "Service category"} name="name" defaultValue={c.name} /></div>
+            <div className="w-24"><Field label="Rate %" name="commission_percent" placeholder="Default" defaultValue={c.commission_bps != null ? c.commission_bps / 100 : ""} /></div>
             <label className="flex h-11 items-center gap-1 text-sm"><input type="checkbox" name="is_active" defaultChecked={c.is_active} className="accent-palm" />Live</label>
             <Submit size="sm" variant="outline">Save</Submit>
           </Form>

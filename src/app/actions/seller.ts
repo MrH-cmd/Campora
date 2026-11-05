@@ -9,8 +9,10 @@ import { asSystem, asUser, type Db } from "@/lib/db";
 import { slugify, toKobo } from "@/lib/format";
 import { changeOrderStatus } from "@/lib/orders";
 import { beginPayment, newReference } from "@/lib/payments/settle";
-import { getProvider } from "@/lib/payments/providers";
+import { getProvider, transfers } from "@/lib/payments/providers";
 import { getSetting } from "@/lib/settings";
+import { appUrl } from "@/lib/email";
+import { emailUser, notify } from "@/lib/notify";
 import { saveImage } from "@/lib/storage";
 
 export async function sellerContext() {
@@ -159,11 +161,23 @@ export const updateOrder = action(z.object({ order_id: id, status: z.string(), n
 });
 
 export const saveBank = action(z.object({
-  bank_name: text(2, 60, "Bank"), account_number: z.string().regex(/^\d{10}$/, "Account numbers have 10 digits"), account_name: text(2, 80, "Account name"),
+  bank_code: text(2, 12, "Bank"), account_number: z.string().regex(/^\d{10}$/, "Account numbers have 10 digits"), account_name: optional(80), bank_name: optional(60),
 }), async (d) => {
   const { user } = await sellerContext();
-  await asUser(user.id, (db) => db.run("update seller_profiles set bank_name=$2,account_number=$3,account_name=$4 where user_id=$1", [user.id, d.bank_name, d.account_number, d.account_name]));
-  return "Payout account saved.";
+  await rateLimit(`bank:${user.id}`, 10, 3600);
+  let name = d.account_name; let recipient: string | null = null; let bank = d.bank_name;
+  if (transfers.configured()) {
+    try {
+      name = await transfers.resolve(d.account_number, d.bank_code);
+      recipient = await transfers.createRecipient(name, d.account_number, d.bank_code);
+      bank = (await transfers.banks()).find((x) => x.code === d.bank_code)?.name ?? bank;
+    } catch { throw new ActionError("Paystack couldn't confirm that account. Check the bank and number."); }
+  }
+  if (!name) throw new ActionError("Enter the account name.");
+  await asSystem((db) => db.run(
+    "update seller_profiles set bank_name=$2,bank_code=$3,account_number=$4,account_name=$5,paystack_recipient_code=$6,account_verified_at=case when $6::text is null then null else now() end where user_id=$1",
+    [user.id, bank ?? d.bank_code, d.bank_code, d.account_number, name, recipient]));
+  return recipient ? `Account confirmed: ${name}.` : "Payout account saved.";
 });
 
 export const requestPayout = action(z.object({ amount: nairaAmount.refine((n) => n >= 100, "The minimum payout is ₦100") }), async (d) => {
@@ -172,7 +186,7 @@ export const requestPayout = action(z.object({ amount: nairaAmount.refine((n) =>
   await asSystem(async (db) => {
     await db.one("select id from storefronts where id=$1 for update", [store.id]);
     const b = await db.one("select * from seller_balances where storefront_id=$1", [store.id]);
-    const available = Number(b.earned_kobo) - Number(b.paid_out_kobo) - Number(b.requested_kobo);
+    const available = Number(b.earned_kobo) - Number(b.owed_kobo) - Number(b.paid_out_kobo) - Number(b.requested_kobo);
     if (toKobo(d.amount) > available) throw new ActionError("That's more than your available balance.");
     const sp = await db.one("select bank_name, account_number, account_name from seller_profiles where user_id=$1", [user.id]);
     if (!sp?.account_number) throw new ActionError("Add your payout account first.");
@@ -285,4 +299,49 @@ export const saveDashboard = action(z.object({ layout: z.string().max(200) }), a
   await asUser(user.id, (db) => db.run("update seller_profiles set dashboard_layout=$2 where user_id=$1", [user.id, JSON.stringify([...new Set(ids)])]));
   revalidatePath("/seller");
   return "Dashboard saved.";
+});
+
+export const savePickupPoint = action(z.object({ id: z.string().optional(), name: text(2, 120, "Pickup point"), instructions: optional(300), available_days: optional(120), time_window: optional(80) }), async (d) => {
+  const { user, store } = await activeStore();
+  await asUser(user.id, (db) => d.id
+    ? db.run("update storefront_pickup_points set name=$2,instructions=$3,available_days=$4,time_window=$5 where id=$1", [d.id, d.name, d.instructions, d.available_days, d.time_window])
+    : db.run("insert into storefront_pickup_points(storefront_id,name,instructions,available_days,time_window) values ($1,$2,$3,$4,$5)", [store.id, d.name, d.instructions, d.available_days, d.time_window]));
+  return "Pickup point saved.";
+});
+
+export const removePickupPoint = action(z.object({ id }), async (d) => {
+  const { user } = await activeStore();
+  await asUser(user.id, (db) => db.run("update storefront_pickup_points set is_active=false where id=$1", [d.id]));
+  return "Pickup point removed.";
+});
+
+async function ownOrder(orderId: string, userId: string) {
+  const o = await asSystem((db) => db.one("select o.*, s.owner_id from orders o join storefronts s on s.id=o.storefront_id where o.id=$1", [orderId]));
+  if (!o || o.owner_id !== userId) throw new ActionError("Order not found.");
+  return o;
+}
+
+export const updatePickup = action(z.object({ order_id: id, pickup_point: text(2, 120, "Pickup point"), pickup_date: optional(10), pickup_window: optional(80), pickup_instructions: optional(300) }), async (d) => {
+  const { user } = await sellerContext();
+  const o = await ownOrder(d.order_id, user.id);
+  if (["completed", "cancelled"].includes(o.status)) throw new ActionError("This order is closed.");
+  await asSystem(async (db) => {
+    await db.run("update orders set pickup_point=$2,pickup_date=$3,pickup_window=$4,pickup_instructions=$5 where id=$1", [o.id, d.pickup_point, d.pickup_date, d.pickup_window, d.pickup_instructions]);
+    await notify(db, o.buyer_id, `Pickup details changed for ${o.number}`, `${d.pickup_point}${d.pickup_date ? `, ${d.pickup_date}` : ""}${d.pickup_window ? `, ${d.pickup_window}` : ""}`, `/account/orders/${o.id}`);
+  });
+  await emailUser(o.buyer_id, `Pickup details changed for ${o.number}`, `New pickup: ${d.pickup_point} ${d.pickup_date ?? ""} ${d.pickup_window ?? ""}\n\n${appUrl(`/account/orders/${o.id}`)}`);
+  return "Pickup updated and the buyer was told.";
+});
+
+export const updateService = action(z.object({ order_id: id, stage: text(2, 60, "Stage"), note: optional(400), expected: optional(10), appointment: optional(160) }), async (d) => {
+  const { user } = await sellerContext();
+  const o = await ownOrder(d.order_id, user.id);
+  if (["completed", "cancelled"].includes(o.status)) throw new ActionError("This order is closed, so it can't take more updates.");
+  await asSystem(async (db) => {
+    await db.run("insert into service_updates(order_id,stage,note,created_by) values ($1,$2,$3,$4)", [o.id, d.stage, d.note, user.id]);
+    await db.run("update orders set service_stage=$2, service_expected_at=coalesce($3::date, service_expected_at), appointment=coalesce($4, appointment) where id=$1", [o.id, d.stage, d.expected, d.appointment]);
+    await notify(db, o.buyer_id, `${o.number}: ${d.stage}`, d.note, `/account/orders/${o.id}`);
+  });
+  await emailUser(o.buyer_id, `Service update: ${d.stage}`, `${d.note ?? ""}\n\n${appUrl(`/account/orders/${o.id}`)}`);
+  return "Update sent to the customer.";
 });

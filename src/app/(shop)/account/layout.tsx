@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 
-const LINKS = [["/account", "Profile"], ["/account/orders", "Orders"], ["/account/favourites", "Favourites"], ["/account/verification", "Student verification"], ["/messages", "Messages"]];
+const LINKS = [["/account", "Profile"], ["/account/orders", "Orders"], ["/account/rewards", "My Rewards"], ["/account/favourites", "Favourites"], ["/account/verification", "Student verification"], ["/messages", "Messages"]];
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   await requireUser("/account");

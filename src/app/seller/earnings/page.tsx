@@ -10,15 +10,17 @@ export default async function Earnings() {
   if (!store) return <Empty title="Set up your storefront first" />;
   const d = await asUser(user.id, async (db) => ({
     b: await db.one("select * from seller_balances where storefront_id=$1", [store.id]),
+    t: await db.one("select coalesce(sum(eligible_kobo),0) eligible, coalesce(sum(commission_kobo),0) fee from commissions where storefront_id=$1 and status<>'reversed'", [store.id]),
     comm: await db.rows("select c.*, o.number from commissions c join orders o on o.id=c.order_id where c.storefront_id=$1 order by c.created_at desc limit 30", [store.id]),
     payouts: await db.rows("select * from seller_payouts where storefront_id=$1 order by created_at desc limit 20", [store.id]),
   }));
-  const available = Number(d.b.earned_kobo) - Number(d.b.paid_out_kobo) - Number(d.b.requested_kobo);
+  const available = Number(d.b.earned_kobo) - Number(d.b.owed_kobo) - Number(d.b.paid_out_kobo) - Number(d.b.requested_kobo);
   return (
     <>
-      <PageHead title="Earnings" sub="Earnings come from completed orders paid online. Money you collect at pickup is already yours." />
+      <PageHead title="Earnings" sub="Each completed sale shows what you earned and what Vybe Market kept." />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Available" value={naira(available)} /><Stat label="Earned" value={naira(d.b.earned_kobo)} /><Stat label="Payouts requested" value={naira(d.b.requested_kobo)} /><Stat label="Paid out" value={naira(d.b.paid_out_kobo)} />
+        <Stat label="Available" value={naira(available)} /><Stat label="Pending earnings" value={naira(d.b.pending_kobo)} hint="Paid orders not yet completed" /><Stat label="Gross eligible sales" value={naira(d.t.eligible)} /><Stat label="Commission paid" value={naira(d.t.fee)} />
+        <Stat label="Earned" value={naira(d.b.earned_kobo)} /><Stat label="Commission owed on cash orders" value={naira(d.b.owed_kobo)} /><Stat label="Payouts in progress" value={naira(d.b.requested_kobo)} /><Stat label="Paid out" value={naira(d.b.paid_out_kobo)} />
       </div>
       <Card className="mt-4 max-w-md">
         <Form action={requestPayout} resetOnSuccess className="flex items-end gap-2"><div className="flex-1"><Field label="Amount (₦)" name="amount" inputMode="decimal" /></div><Submit>Request payout</Submit></Form>
