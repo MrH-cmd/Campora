@@ -1,5 +1,5 @@
 "use client";
-import { AnimatePresence, Reorder, motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -29,16 +29,16 @@ export function DashboardCustomizer({ layout }: { layout: string[] }) {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="mt-3 rounded-tag border border-line bg-card p-4">
               <p className="text-sm text-mute">Choose what you see, and put it in your own order.</p>
-              <Reorder.Group axis="y" values={on} onReorder={setOn} className="mt-2 space-y-1.5">
+              <motion.ul className="mt-2 space-y-1.5">
                 {on.map((id, i) => (
-                  <Reorder.Item key={id} value={id} className="flex cursor-grab items-center gap-2 rounded-xl bg-panel-2 px-3 py-2 active:cursor-grabbing">
+                  <motion.li key={id} layout className="flex items-center gap-2 rounded-xl bg-panel-2 px-3 py-2">
                     <input type="checkbox" checked aria-label={`Show ${label(id)}`} className="size-4 accent-palm" onChange={() => setOn(on.filter((x) => x !== id))} />
                     <span className="flex-1 text-sm">{label(id)}</span>
                     <button type="button" aria-label={`Move ${label(id)} up`} disabled={i === 0} className="p-1 disabled:opacity-30" onClick={() => move(i, -1)}><ChevronUp size={16} aria-hidden /></button>
                     <button type="button" aria-label={`Move ${label(id)} down`} disabled={i === on.length - 1} className="p-1 disabled:opacity-30" onClick={() => move(i, 1)}><ChevronDown size={16} aria-hidden /></button>
-                  </Reorder.Item>
+                  </motion.li>
                 ))}
-              </Reorder.Group>
+              </motion.ul>
               {off.length > 0 && <div className="mt-2 space-y-1">{off.map((w) => (
                 <label key={w.id} className="flex items-center gap-2 px-3 py-1 text-sm text-mute"><input type="checkbox" checked={false} className="size-4 accent-palm" onChange={() => setOn([...on, w.id])} />{w.label}</label>
               ))}</div>}
