@@ -29,13 +29,14 @@ The e2e run starts a fake Paystack server (`tests/e2e/fake-gateway.mjs`). It's u
 ## Deploy (Vercel and Supabase)
 
 1. Create a Supabase project. Copy the pooled connection string into DATABASE_URL.
-2. Run `npm run db:migrate` against it.
+2. Migrations and first-time seed data run during the Vercel build.
 3. Create a Storage bucket called `campora`, private. Files are served through `/files`, which checks access.
-4. Do not run the seed in production. Instead insert your first university, categories, plans and settings, or run the seed on staging and copy those tables. Then promote your admin: `update users set role='admin' where email='you@example.com'`.
-5. Set the variables from `.env.example` in Vercel. `vercel.json` schedules the daily sweep; Vercel sends CRON_SECRET as a bearer token.
-6. Set webhook URLs in the provider dashboards:
+4. Set the variables from `.env.example` in Vercel. `vercel.json` schedules the daily sweep; Vercel sends CRON_SECRET as a bearer token.
+5. Set webhook URLs in the provider dashboards:
    - Paystack: `https://your-domain.com/api/webhooks/paystack`
    - Flutterwave: `https://your-domain.com/api/webhooks/flutterwave`
+
+On Vercel, `npm run vercel-build` applies new migrations before each build. It seeds only an empty database, and on Vercel the sample accounts get a random password nobody knows, so they can't be logged in to.
 
 ## How the important parts work
 

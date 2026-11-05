@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "tsx scripts/migrate.ts && tsx scripts/seed.ts && next build",
     "start": "next start",
     "lint": "tsc --noEmit",
     "db:migrate": "tsx scripts/migrate.ts",

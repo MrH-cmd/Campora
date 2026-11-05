@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -59,6 +60,8 @@ async function main() {
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
   const one = async (t: string, p?: unknown[]) => (await db.query(t, p as any[])).rows[0];
+  const already = await db.query("select 1 from universities limit 1");
+  if (already.rowCount) { console.log("Seed skipped: data already exists."); await db.end(); return; }
   await db.query("begin");
 
   const cu = await one(
@@ -89,7 +92,7 @@ async function main() {
   await pk("Top of search", "search_priority", 7, 1);
   await pk("Promoted storefront", "storefront_promoted", 7, 1);
 
-  const pw = await hashPassword(process.env.SEED_PASSWORD ?? "campora-dev-1");
+  const pw = await hashPassword(process.env.SEED_PASSWORD ?? (process.env.VERCEL ? randomBytes(32).toString("hex") : "campora-dev-1"));
   const user = async (email: string, name: string, role: string, student = "verified") => (await one(
     `insert into users(email,password_hash,full_name,university_id,role,email_verified_at,student_status,is_sample) values ($1,$2,$3,$4,$5,now(),$6,true) returning id`,
     [email, pw, name, cu.id, role, student])).id;
