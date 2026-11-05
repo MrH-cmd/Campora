@@ -37,6 +37,13 @@ export default async function Review({ params }: { params: Promise<{ id: string 
             <Submit>Save decision</Submit>
           </Form>
         )}
+        {v.status === "approved" && (
+          <Form action={reviewVerification} className="space-y-2">
+            <input type="hidden" name="id" value={v.id} /><input type="hidden" name="decision" value="rejected" />
+            <Field label="Reason for revoking" name="note" />
+            <Submit variant="danger" size="sm" confirm="Revoke this student's verified status?">Revoke approval</Submit>
+          </Form>
+        )}
         <Form action={reviewVerification} resetOnSuccess className="mt-4 space-y-2 border-t border-line pt-3">
           <input type="hidden" name="id" value={v.id} /><input type="hidden" name="decision" value="note" />
           <Field label="Internal note (the student never sees this)" name="note" defaultValue={v.internal_note ?? ""} />

@@ -15,7 +15,7 @@ export function DashboardCustomizer({ layout }: { layout: string[] }) {
   const router = useRouter();
   const off = WIDGETS.filter((w) => !on.includes(w.id));
   const label = (id: string) => WIDGETS.find((w) => w.id === id)?.label ?? id;
-  const move = (i: number, by: number) => { const n = [...on]; const [x] = n.splice(i, 1); n.splice(i + by, 0, x); setOn(n); };
+  const move = (id: string, by: number) => setOn((cur) => { const n = [...cur]; const i = n.indexOf(id); const j = i + by; if (i < 0 || j < 0 || j >= n.length) return cur; n.splice(i, 1); n.splice(j, 0, id); return n; });
   const save = () => start(async () => {
     const f = new FormData(); f.set("layout", on.join(","));
     const r = await saveDashboard({}, f);
@@ -32,15 +32,15 @@ export function DashboardCustomizer({ layout }: { layout: string[] }) {
               <motion.ul className="mt-2 space-y-1.5">
                 {on.map((id, i) => (
                   <motion.li key={id} layout className="flex items-center gap-2 rounded-xl bg-panel-2 px-3 py-2">
-                    <input type="checkbox" checked aria-label={`Show ${label(id)}`} className="size-4 accent-palm" onChange={() => setOn(on.filter((x) => x !== id))} />
+                    <input type="checkbox" checked aria-label={`Show ${label(id)}`} className="size-4 accent-palm" onChange={() => setOn((cur) => cur.filter((x) => x !== id))} />
                     <span className="flex-1 text-sm">{label(id)}</span>
-                    <button type="button" aria-label={`Move ${label(id)} up`} disabled={i === 0} className="p-1 disabled:opacity-30" onClick={() => move(i, -1)}><ChevronUp size={16} aria-hidden /></button>
-                    <button type="button" aria-label={`Move ${label(id)} down`} disabled={i === on.length - 1} className="p-1 disabled:opacity-30" onClick={() => move(i, 1)}><ChevronDown size={16} aria-hidden /></button>
+                    <button type="button" aria-label={`Move ${label(id)} up`} disabled={i === 0} className="p-1 disabled:opacity-30" onClick={() => move(id, -1)}><ChevronUp size={16} aria-hidden /></button>
+                    <button type="button" aria-label={`Move ${label(id)} down`} disabled={i === on.length - 1} className="p-1 disabled:opacity-30" onClick={() => move(id, 1)}><ChevronDown size={16} aria-hidden /></button>
                   </motion.li>
                 ))}
               </motion.ul>
               {off.length > 0 && <div className="mt-2 space-y-1">{off.map((w) => (
-                <label key={w.id} className="flex items-center gap-2 px-3 py-1 text-sm text-mute"><input type="checkbox" checked={false} className="size-4 accent-palm" onChange={() => setOn([...on, w.id])} />{w.label}</label>
+                <label key={w.id} className="flex items-center gap-2 px-3 py-1 text-sm text-mute"><input type="checkbox" checked={false} className="size-4 accent-palm" onChange={() => setOn((cur) => [...cur, w.id])} />{w.label}</label>
               ))}</div>}
               <button type="button" disabled={pending} onClick={save} className={`${buttonClass("primary", "sm")} mt-3`}>Save dashboard</button>
             </div>

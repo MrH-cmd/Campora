@@ -32,7 +32,7 @@ export default async function Verify() {
           {methods.includes("id_upload") && (
             <Card>
               <h2 className="text-lg font-bold">Verify Your Student Status</h2>
-              <p className="text-sm text-mute">An admin checks it by hand. Your document stays private and is never shown on your profile or listings.</p>
+              <p className="text-sm text-mute">Your document stays private and is never shown on your profile or listings.</p>
               <Form action={submitIdUpload} className="mt-3 space-y-3">
                 <Field label="Full name" name="full_name" defaultValue={u.full_name} />
                 <div className="grid grid-cols-2 gap-2"><Field label="Department or faculty" name="department" /><Field label="Level" name="academic_level" placeholder="300" /></div>

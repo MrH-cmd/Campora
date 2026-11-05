@@ -94,7 +94,7 @@ async function main() {
     if (i === 0) free = r.id;
   }
   for (const [k, v] of [["commission_bps", 500], ["pay_on_pickup_enabled", true], ["require_listing_review", true], ["deletion_grace_days", 7], ["selling_requires_student", true]] as const)
-    await db.query("insert into platform_settings(key,value) values ($1,$2)", [k, JSON.stringify(v)]);
+    await db.query("insert into platform_settings(key,value) values ($1,$2) on conflict (key) do nothing", [k, JSON.stringify(v)]);
   const pk = async (name: string, place: string, days: number, credits: number) => (await one("insert into boost_packages(name,placement,duration_days,credit_cost) values ($1,$2,$3,$4) returning id", [name, place, days, credits])).id;
   const homePkg = await pk("Homepage spotlight", "homepage_featured", 7, 2);
   await pk("Top of search", "search_priority", 7, 1);

@@ -16,7 +16,7 @@ export default async function Settings() {
     boosts: await db.rows("select * from boost_packages order by created_at"),
     unis: await db.rows("select * from universities order by name"),
     camps: await db.rows("select * from promotional_campaigns where storefront_id is null and is_active and ends_at>now() order by created_at desc"),
-    bps: await getSetting(db, "commission_bps", 500), pickup: await getSetting(db, "pay_on_pickup_enabled", true), review: await getSetting(db, "require_listing_review", true), grace: await getSetting(db, "deletion_grace_days", 7), student: await getSetting(db, "selling_requires_student", true),
+    bps: await getSetting(db, "commission_bps", 500), pickup: await getSetting(db, "pay_on_pickup_enabled", true), review: await getSetting(db, "require_listing_review", true), grace: await getSetting(db, "deletion_grace_days", 7), student: await getSetting(db, "selling_requires_student", true), auto: await getSetting(db, "auto_approve_students", false),
   }));
   return (
     <>
@@ -28,6 +28,7 @@ export default async function Settings() {
             <Field label="Commission (%)" name="commission_percent" type="number" step="0.1" defaultValue={d.bps / 100} hint="Applies to future sales. Past sales keep their rate. Set category rates under Categories." />
             <Field label="Account deletion grace period (days)" name="deletion_grace_days" type="number" defaultValue={d.grace} />
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="selling_requires_student" defaultChecked={d.student} className="size-4 accent-palm" />Selling requires a verified student</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="auto_approve_students" defaultChecked={d.auto} className="size-4 accent-palm" />Approve student submissions automatically (doesn't confirm the ID is genuine)</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="pay_on_pickup_enabled" defaultChecked={d.pickup} className="size-4 accent-palm" />Allow pay at pickup</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="require_listing_review" defaultChecked={d.review} className="size-4 accent-palm" />New listings need admin approval</label>
             <Submit>Save rules</Submit>

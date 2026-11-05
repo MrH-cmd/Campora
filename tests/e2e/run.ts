@@ -37,6 +37,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
 
 (async () => {
   execSync("npx tsx scripts/migrate.ts --reset && npx tsx scripts/seed.ts --sample", { env, stdio: "pipe" });
+  execSync(`psql "${DB}" -Atc "update platform_settings set value='false' where key='auto_approve_students'"`);
   const gw = spawn("node", ["tests/e2e/fake-gateway.mjs"], { stdio: "inherit" });
   const app = spawn("npx", ["next", "start", "-p", "3100"], { env, stdio: "pipe" });
   app.stderr.on("data", (d) => process.env.VERBOSE && console.error(String(d)));
@@ -384,6 +385,18 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await admin.bringToFront(); await admin.goto(`${BASE}/admin/earnings`); await admin.getByText("Every commission").waitFor();
     const r = await admin.request.get(`${BASE}/api/admin/export?report=commissions`); expect(r.ok() && (await r.text()).includes("seller_earnings"), "csv");
     expect((await buyer.request.get(`${BASE}/api/admin/export?report=ledger`)).status() === 403, "buyer export");
+  });
+  await step("automatic review approves at once; a repeated matric number waits; admin can revoke", async () => {
+    sql("update platform_settings set value='true' where key='auto_approve_students'");
+    const p = await page(); await p.goto(`${BASE}/register`); await p.fill("[name=full_name]", "Auto Student"); await p.fill("[name=email]", "auto@example.com"); await p.fill("[name=password]", PW); await p.click('button:has-text("Create account")'); await p.waitForURL("**/account**");
+    await p.bringToFront(); await p.goto(`${BASE}/account/verification`); await p.waitForTimeout(800);
+    await p.fill("[name=department]", "Law"); await p.fill("[name=academic_level]", "200"); await p.fill("[name=matric_number]", "19CG0001"); await p.setInputFiles("[name=document]", "/tmp/pic.png"); await p.click('button:has-text("Submit for review")'); await p.waitForTimeout(1500);
+    expect(sql("select student_status from users where email='auto@example.com'") === "pending", "duplicate matric must wait");
+    await p.fill("[name=matric_number]", "21AB9999"); await p.click('button:has-text("Submit for review")'); await toast(p, "You're verified");
+    expect(sql("select student_status from users where email='auto@example.com'") === "verified", "auto approved");
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin/verifications/${sql("select v.id from student_verifications v where matric_number='21AB9999'")}`); await admin.waitForTimeout(800);
+    await admin.fill("[name=note] >> nth=0", "Document unreadable"); await admin.click('button:has-text("Revoke approval")'); await admin.click('button:has-text("Yes, continue")'); await toast(admin, "Request declined");
+    expect(sql("select student_status from users where email='auto@example.com'") === "rejected", "revoked");
   });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 

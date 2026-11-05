@@ -10,6 +10,7 @@ import { deletionBlockers } from "@/lib/deletion";
 import { notify } from "@/lib/notify";
 import { assignReferralCode, attachReferral, hashIp } from "@/lib/referrals";
 import { getSetting } from "@/lib/settings";
+import { autoReview } from "@/lib/verification";
 import { saveDocument, saveImage } from "@/lib/storage";
 
 const email = z.string().trim().toLowerCase().email("Enter a valid email address");
@@ -186,10 +187,18 @@ export const submitIdUpload = action(z.object({
       "insert into student_verifications(user_id,university_id,method,matric_number,document_path,full_name,department,academic_level) values ($1,$2,'id_upload',$3,$4,$5,$6,$7) returning id, created_at",
       [u.id, uni.id, d.matric_number, path, d.full_name, d.department, d.academic_level]);
     await db.run("update users set student_status='pending' where id=$1", [u.id]);
+    if (await autoReview(db, v.id, u.id, d.matric_number)) {
+      await notify(db, u.id, "You're a verified student", null, "/account/verification");
+      return { ...v, uni: uni.name, auto: true };
+    }
     const admins = await db.rows("select id from users where role='admin' and status='active'");
     for (const a of admins) await notify(db, a.id, "New student verification", d.full_name, `/admin/verifications/${v.id}`);
-    return { ...v, uni: uni.name };
+    return { ...v, uni: uni.name, auto: false };
   });
+  if (row.auto) {
+    await sendEmail(u.email, "You're a verified student", `Your student status is confirmed.\n\n${appUrl("/account/verification")}`);
+    return "You're verified.";
+  }
   const to = process.env.VERIFICATION_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL;
   if (to) await sendEmail(to, "New student verification to review",
     `Student: ${d.full_name}\nEmail: ${u.email}\nUniversity: ${row.uni}\nDepartment: ${d.department}\nSubmitted: ${new Date(row.created_at).toLocaleString("en-NG", { timeZone: "Africa/Lagos" })}\nStatus: Pending\n\nReview it here (admin login required): ${appUrl(`/admin/verifications/${row.id}`)}`);

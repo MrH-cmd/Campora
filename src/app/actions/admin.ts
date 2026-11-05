@@ -49,7 +49,7 @@ export const reviewVerification = action(z.object({ id, decision: z.enum(["appro
     await db.run("insert into verification_reviews(verification_id,admin_id,decision,reason) values ($1,$2,$3,$4)", [d.id, a.id, d.decision, d.note]);
     await logAdmin(db, a.id, `student.${d.decision}`, "verification", d.id);
     if (d.decision === "note") { await db.run("update student_verifications set internal_note=$2 where id=$1", [d.id, d.note]); return null; }
-    const v = await db.one("update student_verifications set status=$2, review_note=$3, reviewed_by=$4, reviewed_at=now() where id=$1 and status='pending' returning user_id", [d.id, d.decision, d.note, a.id]);
+    const v = await db.one("update student_verifications set status=$2::review_state, review_note=$3, reviewed_by=$4, reviewed_at=now() where id=$1 and (status='pending' or (status='approved' and $2::text='rejected')) returning user_id", [d.id, d.decision, d.note, a.id]);
     if (!v) throw new ActionError("This request was already reviewed.");
     const next = d.decision === "approved" ? "verified" : d.decision === "rejected" ? "rejected" : "resubmit";
     await db.run("update users set student_status=$2 where id=$1", [v.user_id, next]);
@@ -205,7 +205,7 @@ export const savePlan = admin(z.object({
 
 export const saveSettings = admin(z.object({
   commission_percent: z.coerce.number().min(0).max(50), pay_on_pickup_enabled: z.string().optional(), require_listing_review: z.string().optional(),
-  deletion_grace_days: z.coerce.number().int().min(0).max(60), selling_requires_student: z.string().optional(),
+  deletion_grace_days: z.coerce.number().int().min(0).max(60), selling_requires_student: z.string().optional(), auto_approve_students: z.string().optional(),
 }), "settings.save", async (d, db) => {
   const put = (k: string, v: unknown) => db.run(
     "insert into platform_settings(key,value) values ($1,$2) on conflict (key) do update set value=$2, updated_at=now()", [k, JSON.stringify(v)]);
@@ -214,6 +214,7 @@ export const saveSettings = admin(z.object({
   await put("require_listing_review", d.require_listing_review === "on");
   await put("deletion_grace_days", d.deletion_grace_days);
   await put("selling_requires_student", d.selling_requires_student === "on");
+  await put("auto_approve_students", d.auto_approve_students === "on");
   return "Settings saved.";
 });
 
