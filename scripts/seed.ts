@@ -66,6 +66,8 @@ async function main() {
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
   const one = async (t: string, p?: unknown[]) => (await db.query(t, p as any[])).rows[0];
+  // ADMIN_EMAIL promotes an already-registered account, because nothing else can create the first admin.
+  if (process.env.ADMIN_EMAIL) await db.query("update users set role='admin' where lower(email)=lower($1)", [process.env.ADMIN_EMAIL]);
   const already = await db.query("select 1 from universities limit 1");
   if (already.rowCount) { console.log("Seed skipped: data already exists."); await db.end(); return; }
   await db.query("begin");
