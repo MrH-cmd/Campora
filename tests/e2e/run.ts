@@ -37,7 +37,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
 
 (async () => {
   execSync("npx tsx scripts/migrate.ts --reset && npx tsx scripts/seed.ts --sample", { env, stdio: "pipe" });
-  execSync(`psql "${DB}" -Atc "update platform_settings set value='false' where key='auto_approve_students'"`);
+  execSync(`psql "${DB}" -Atc "update platform_settings set value='false' where key='auto_approve_students'; update platform_settings set value='true' where key='require_listing_review'"`);
   const gw = spawn("node", ["tests/e2e/fake-gateway.mjs"], { stdio: "inherit" });
   const app = spawn("npx", ["next", "start", "-p", "3100"], { env, stdio: "pipe" });
   app.stderr.on("data", (d) => process.env.VERBOSE && console.error(String(d)));
@@ -397,6 +397,15 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await admin.bringToFront(); await admin.goto(`${BASE}/admin/verifications/${sql("select v.id from student_verifications v where matric_number='21AB9999'")}`); await admin.waitForTimeout(800);
     await admin.fill("[name=note] >> nth=0", "Document unreadable"); await admin.click('button:has-text("Revoke approval")'); await admin.click('button:has-text("Yes, continue")'); await toast(admin, "Request declined");
     expect(sql("select student_status from users where email='auto@example.com'") === "rejected", "revoked");
+  });
+  await step("with review off, a new listing goes public straight away and admin can still remove it", async () => {
+    sql("update platform_settings set value='false' where key='require_listing_review'");
+    await newbie.bringToFront(); await newbie.goto(`${BASE}/seller/listings/new`); await newbie.waitForTimeout(800);
+    await newbie.fill("[name=title]", "Instant Listing"); await newbie.fill("textarea[name=description]", "This one should go live with no approval."); await newbie.fill("[name=price]", "1000"); await newbie.fill("[name=stock]", "3");
+    await newbie.click('button[value=publish]'); await newbie.waitForURL("**/seller/listings/*?saved=1");
+    await anon.goto(`${BASE}/search?q=Instant`); await anon.getByText("Instant Listing").first().waitFor();
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin/listings?status=active`); await admin.locator('tr:has-text("Instant Listing") button:has-text("Remove")').click(); await admin.click('button:has-text("Yes, continue")'); await toast(admin, "Listing removed");
+    await anon.goto(`${BASE}/search?q=Instant`); expect(await anon.getByText("Instant Listing").count() === 0, "still public");
   });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 

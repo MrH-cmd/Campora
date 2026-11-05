@@ -17,6 +17,7 @@ beforeAll(() => {
   execSync("npx tsx scripts/migrate.ts --reset && npx tsx scripts/seed.ts --sample", { env: { ...process.env, DATABASE_URL: url }, stdio: "pipe" });
 });
 beforeAll(async () => {
+  await asSystem((db) => db.run("update platform_settings set value='true' where key='require_listing_review'"));
   buyer = await user("buyer@campora.test"); admin = await user("admin@campora.test");
   seller = await user("kicks@campora.test"); seller2 = await user("bowl@campora.test");
   buyer2 = await user("wear@campora.test");
