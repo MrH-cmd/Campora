@@ -4,20 +4,22 @@ import { Field, Form, Submit } from "@/components/form";
 import { Badge, Card, LinkButton, PageHead, statusTone } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { asUser } from "@/lib/db";
+import { emailEnabled } from "@/lib/email";
 
 export const metadata = { title: "Start selling" };
 export default async function Become() {
   const u = await requireUser("/account/become-seller");
   if (u.role === "seller") redirect("/seller");
   const app = await asUser(u.id, (db) => db.one("select * from seller_profiles where user_id=$1", [u.id]));
-  const ready = !!u.email_verified_at && u.student_status === "verified";
+  const needEmail = emailEnabled() && !u.email_verified_at;
+  const ready = !needEmail && u.student_status === "verified";
   return (
     <div className="max-w-xl">
       <PageHead title="Open your storefront" sub="Tell us about your business. An admin reviews every application." />
       {!ready && (
         <Card className="mb-4"><p className="font-semibold">Before you apply</p>
           <ul className="mt-1 list-inside list-disc text-sm text-mute">
-            {!u.email_verified_at && <li>Verify your email from the link we sent you</li>}
+            {needEmail && <li>Verify your email from the link we sent you</li>}
             {u.student_status !== "verified" && <li>Verify your student status</li>}
           </ul>
           {u.student_status !== "verified" && <LinkButton size="sm" className="mt-3" href="/account/verification">Verify student status</LinkButton>}

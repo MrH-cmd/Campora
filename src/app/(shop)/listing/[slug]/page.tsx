@@ -76,13 +76,13 @@ export default async function ListingPage({ params }: P) {
           )}
           {isOwner && <Link href={`/seller/listings/${l.id}`} className="mt-5 inline-block font-semibold text-palm-deep underline">Edit this listing</Link>}
 
-          <Link href={`/store/${store.slug}`} className="mt-5 flex items-center gap-3 rounded-tag border border-line bg-white p-3 hover:border-palm">
+          <Link href={`/store/${store.slug}`} className="mt-5 flex items-center gap-3 rounded-tag border border-line bg-card p-3 hover:border-palm">
             <Img path={store.logo_path} alt="" className="size-12 rounded-xl" />
             <div><p className="font-semibold">{store.name}</p><p className="text-sm text-mute">{l.university_short}{store.review_count > 0 ? `, ${Number(store.rating).toFixed(1)} stars` : ""}</p></div>
           </Link>
 
           {!isOwner && (
-            <details className="mt-3 rounded-tag border border-line bg-white p-3" open={!canCart}>
+            <details className="mt-3 rounded-tag border border-line bg-card p-3" open={!canCart}>
               <summary className="flex cursor-pointer items-center gap-2 font-semibold"><MessageCircle size={17} aria-hidden />Ask the seller</summary>
               <Form action={sendEnquiry} className="mt-2 space-y-2">
                 <input type="hidden" name="storefront_id" value={store.id} /><input type="hidden" name="listing_id" value={l.id} /><input type="hidden" name="back" value={`/listing/${l.slug}`} />
@@ -99,8 +99,8 @@ export default async function ListingPage({ params }: P) {
         {d.reviews.length === 0 ? <p className="mt-2 text-mute">No reviews yet. Reviews come from buyers with completed orders.</p> : (
           <ul className="mt-3 grid gap-3 md:grid-cols-2">
             {d.reviews.map((r) => (
-              <li key={r.id} className="rounded-tag border border-line bg-white p-4">
-                <p className="flex items-center gap-1 text-sm font-semibold">{r.author ?? "Campora buyer"}
+              <li key={r.id} className="rounded-tag border border-line bg-card p-4">
+                <p className="flex items-center gap-1 text-sm font-semibold">{r.author ?? "Verified buyer"}
                   <span className="ml-1 flex" aria-label={`${r.rating} out of 5`}>{Array.from({ length: r.rating }, (_, i) => <Star key={i} size={13} className="fill-sun text-sun" aria-hidden />)}</span>
                   <span className="ml-auto text-xs font-normal text-mute">{shortDate(r.created_at)}</span></p>
                 {r.body && <p className="mt-1 text-ink-3">{r.body}</p>}

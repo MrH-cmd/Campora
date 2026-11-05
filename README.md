@@ -1,4 +1,4 @@
-# Campora
+# Vybe Market
 
 University marketplace: products, services, storefronts, orders, messaging, seller plans, Store Boosts and an admin dashboard. Starts with Covenant University and supports more universities from the admin settings.
 
@@ -13,7 +13,7 @@ You need Node 22 and PostgreSQL 16.
     npm run db:reset            # drops everything, migrates, loads sample data
     npm run dev
 
-Sample accounts (password `campora-dev-1`, or SEED_PASSWORD): `admin@campora.test`, `buyer@campora.test`, and sellers `kicks@`, `bowl@`, `lens@`, `wear@`, `tech@`, `glow@campora.test`.
+Sample accounts, loaded only by `db:reset` (password `campora-dev-1`, or SEED_PASSWORD): `admin@campora.test`, `buyer@campora.test`, and sellers `kicks@`, `bowl@`, `lens@`, `wear@`, `tech@`, `glow@campora.test`.
 
 Emails appear at `/dev/mailbox` while EMAIL_DRIVER=outbox. That page returns 404 with any other driver.
 
@@ -36,7 +36,7 @@ The e2e run starts a fake Paystack server (`tests/e2e/fake-gateway.mjs`). It's u
    - Paystack: `https://your-domain.com/api/webhooks/paystack`
    - Flutterwave: `https://your-domain.com/api/webhooks/flutterwave`
 
-On Vercel, `npm run vercel-build` applies new migrations before each build. It seeds only an empty database, and on Vercel the sample accounts get a random password nobody knows, so they can't be logged in to.
+On Vercel, `npm run vercel-build` applies new migrations before each build. It seeds an empty database with reference data only: the university, categories, plans and settings. Sample data needs `tsx scripts/seed.ts --sample` and never runs on Vercel.
 
 ## How the important parts work
 

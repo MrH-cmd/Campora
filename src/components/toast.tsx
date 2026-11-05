@@ -17,7 +17,7 @@ export function Toaster() {
       <AnimatePresence>
         {items.map((t) => (
           <motion.div key={t.id} initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0, y: 8 }}
-            className={`rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg ${t.tone === "ok" ? "bg-ink text-white" : "bg-coral text-white"}`}>
+            className={`rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg ${t.tone === "ok" ? "border border-palm bg-panel-2 text-white" : "bg-coral text-white"}`}>
             {t.text}
           </motion.div>
         ))}

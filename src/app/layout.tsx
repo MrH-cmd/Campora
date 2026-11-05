@@ -4,10 +4,10 @@ import { Toaster } from "@/components/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Campora: all your campus needs, in one app", template: "%s | Campora" },
+  title: { default: "Vybe Market: all your campus needs, in one app", template: "%s | Vybe Market" },
   description: "Buy, sell and discover products and services from student businesses on your campus.",
 };
-export const viewport: Viewport = { themeColor: "#12203f", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#070509", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

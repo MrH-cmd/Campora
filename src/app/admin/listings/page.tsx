@@ -14,7 +14,7 @@ export default async function L({ searchParams }: { searchParams: Promise<{ stat
   return (
     <>
       <PageHead title="Listings" />
-      <div className="mb-4 flex gap-1 overflow-x-auto">{Object.entries(LISTING_STATUS_LABEL).map(([k, l]) => <Link key={k} href={`/admin/listings?status=${k}`} className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium ${status === k ? "bg-ink text-white" : "border border-line bg-white"}`}>{l}</Link>)}</div>
+      <div className="mb-4 flex gap-1 overflow-x-auto">{Object.entries(LISTING_STATUS_LABEL).map(([k, l]) => <Link key={k} href={`/admin/listings?status=${k}`} className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium ${status === k ? "bg-panel text-white" : "border border-line bg-card"}`}>{l}</Link>)}</div>
       {rows.length === 0 ? <Empty title="Nothing here" /> : (
         <Table head={["Listing", "Store", "Price", "Status", "Actions"]}>
           {rows.map((l) => (
@@ -24,7 +24,7 @@ export default async function L({ searchParams }: { searchParams: Promise<{ stat
               <Td><div className="flex gap-1">
                 {l.status !== "active" && <ActionButton action={moderateListing} values={{ id: l.id, decision: "approve" }} variant="primary">Approve</ActionButton>}
                 {l.status === "pending_review" && <ActionButton action={moderateListing} values={{ id: l.id, decision: "reject" }}>Reject</ActionButton>}
-                {l.status !== "removed" && <ActionButton action={moderateListing} values={{ id: l.id, decision: "remove" }} variant="danger" confirm="Remove this listing from Campora?">Remove</ActionButton>}
+                {l.status !== "removed" && <ActionButton action={moderateListing} values={{ id: l.id, decision: "remove" }} variant="danger" confirm="Remove this listing from Vybe Market?">Remove</ActionButton>}
               </div></Td>
             </tr>
           ))}

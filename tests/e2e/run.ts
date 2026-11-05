@@ -36,7 +36,7 @@ const scrollThrough = async (p: Page) => {
 const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ timeout: 10000 });
 
 (async () => {
-  execSync("npx tsx scripts/migrate.ts --reset && npx tsx scripts/seed.ts", { env, stdio: "pipe" });
+  execSync("npx tsx scripts/migrate.ts --reset && npx tsx scripts/seed.ts --sample", { env, stdio: "pipe" });
   const gw = spawn("node", ["tests/e2e/fake-gateway.mjs"], { stdio: "inherit" });
   const app = spawn("npx", ["next", "start", "-p", "3100"], { env, stdio: "pipe" });
   app.stderr.on("data", (d) => process.env.VERBOSE && console.error(String(d)));
@@ -223,13 +223,13 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     const r = await (await fetch("http://localhost:4010/refunds")).json(); expect(r.length === 1 && r[0].amount === 500000, JSON.stringify(r));
   });
   await step("paid plan can't be bought until admin sets a price, then upgrade unlocks features", async () => {
-    await newbie.goto(`${BASE}/seller/billing`); await newbie.getByText("Not on sale yet").first().waitFor();
+    sql("update subscription_plans set price_kobo=null where code='no-dulling'"); await newbie.goto(`${BASE}/seller/billing`); await newbie.getByText("Not on sale yet").first().waitFor();
     await newbie.goto(`${BASE}/seller/promotions`); await newbie.getByText("Discount codes come with").waitFor();
     await admin.goto(`${BASE}/admin/settings`); await admin.locator('form:has(button:has-text("Save No Dulling")) [name=price]').fill("2500"); await admin.click('button:has-text("Save No Dulling")'); await toast(admin, "Plan saved");
     await anon.goto(`${BASE}/pricing`); await anon.getByText("₦2,500").first().waitFor(); await anon.screenshot({ path: `${OUT}/pricing.png` });
     await newbie.goto(`${BASE}/seller/billing`); await newbie.click('button:has-text("Move to No Dulling")');
     await newbie.getByText("Payment confirmed").first().waitFor({ timeout: 15000 });
-    await newbie.goto(`${BASE}/seller`); await newbie.getByText(/on No Dulling/).waitFor();
+    await newbie.goto(`${BASE}/seller/billing`); await newbie.getByText(/on No Dulling/).first().waitFor();
     await newbie.goto(`${BASE}/seller/promotions`); await newbie.fill("[name=code]", "WELCOME10"); await newbie.fill("[name=percent_off]", "10"); await newbie.click('button:has-text("Create code")'); await toast(newbie, "Discount code created");
   });
   await step("discount code changes the server total", async () => {
@@ -287,6 +287,48 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
         if (name === "iphone" && ["/", "/search?type=product", "/seller", `/listing/${listing}`, "/store/thread-theory"].includes(path)) { if (path === "/") await scrollThrough(p); await p.screenshot({ path: `${OUT}/m-${path.replace(/\W+/g, "_").slice(0, 16)}.png`, fullPage: false }); }
       }
     }
+  });
+  await step("seller customizes the dashboard and it persists", async () => {
+    await newbie.bringToFront(); await newbie.goto(`${BASE}/seller`); await newbie.waitForTimeout(1200); await newbie.click('button:has-text("Customize")');
+    await newbie.getByLabel("Show Best sellers").click(); await newbie.getByLabel("Move Plan usage up").click();
+    await newbie.click('button:has-text("Save dashboard")'); await toast(newbie, "Dashboard saved");
+    await newbie.goto(`${BASE}/seller`); await newbie.getByText("What needs you now").first().waitFor();
+    expect(await newbie.getByRole("heading", { name: "Your best sellers" }).count() === 0, "widget still shown");
+  });
+  await step("anonymous add to cart and favourite go to login; bad URLs don't crash", async () => {
+    const p = await page(); await p.goto(BASE + sql("select '/listing/'||slug from listings where title='Vintage Denim Jacket'"));
+    await p.click('button:has-text("Add to cart")'); await p.waitForURL(/login/);
+    for (const u of ["/search?min=abc&max=xyz&page=-1", "/search?sort=bad&type=weird", "/account/orders/not-a-uuid", "/seller/orders/not-a-uuid", "/listing/nope", "/store/nope", "/messages/not-a-uuid"]) {
+      const r = await admin.goto(BASE + u); await admin.waitForTimeout(200);
+      expect(r!.status() < 500, u + " " + r!.status()); expect(await admin.getByText("This page didn't load").count() === 0, "crash " + u);
+    }
+  });
+  await step("restricted user can browse but not buy, message or sell", async () => {
+    sql("update users set status='restricted' where email='wear@campora.test'");
+    const p = await page(); await login(p, "wear@campora.test");
+    await p.goto(BASE + sql("select '/listing/'||slug from listings where title='Wireless Earbuds'")); await p.click('button:has-text("Add to cart")'); await toast(p, "restricted");
+    sql("update users set status='active' where email='wear@campora.test'");
+  });
+  await step("redirect after login can't leave the site", async () => {
+    const p = await page(); await p.goto(`${BASE}/login?next=${encodeURIComponent("/\\\\evil.example")}`);
+    await p.fill("[name=email]", "bowl@campora.test"); await p.fill("[name=password]", PW); await p.click('button:has-text("Log in")'); await p.waitForTimeout(1500); expect(p.url().startsWith(BASE), p.url());
+  });
+  await step("every link on every buyer, seller and admin page works", async () => {
+    for (const [p, starts] of [[anon, ["/", "/pricing", "/search"]], [buyer, ["/", "/account", "/account/orders", "/messages", "/notifications", "/cart"]], [newbie, ["/seller", "/seller/orders", "/seller/listings", "/seller/storefront", "/seller/analytics", "/seller/promotions", "/seller/boosts", "/seller/earnings", "/seller/billing"]], [admin, ["/admin", "/admin/users", "/admin/verifications", "/admin/sellers", "/admin/listings", "/admin/categories", "/admin/reports", "/admin/disputes", "/admin/finance", "/admin/settings", "/admin/logs"]]] as [Page, string[]][]) {
+      const seen = new Set<string>();
+      for (const s of starts) {
+        await p.goto(BASE + s); await p.waitForTimeout(250);
+        const links = await p.evaluate(() => [...document.querySelectorAll("a[href^='/']")].map((a) => a.getAttribute("href")!));
+        for (const l of links) { if (seen.has(l) || l.startsWith("/files")) continue; seen.add(l); const r = await p.request.get(BASE + l); expect(r.status() < 400, `${s} -> ${l} ${r.status()}`); }
+        expect(await p.getByText("This page didn't load").count() === 0, "crash on " + s);
+      }
+      console.log("  links checked:", seen.size);
+    }
+  });
+  await step("every visible button on key pages submits or does something", async () => {
+    await admin.goto(`${BASE}/admin/settings`);
+    const dead = await admin.evaluate(() => [...document.querySelectorAll("button")].filter((b) => (b as HTMLButtonElement).type !== "submit" && !Object.keys(b).some((k) => k.startsWith("__reactProps"))).map((b) => b.textContent));
+    expect(dead.length === 0, "dead: " + dead.join());
   });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 

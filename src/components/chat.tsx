@@ -23,12 +23,12 @@ export function Chat({ id, me, initial }: { id: string; me: string; initial: M[]
   }, [id]);
   return (
     <div className="mt-4">
-      <div className="space-y-2 rounded-tag border border-line bg-white p-3 sm:p-4" role="log" aria-label="Messages">
+      <div className="space-y-2 rounded-tag border border-line bg-card p-3 sm:p-4" role="log" aria-label="Messages">
         {msgs.map((m) => {
           const mine = m.sender_id === me;
           return (
             <motion.div key={m.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`flex ${mine ? "justify-end" : ""}`}>
-              <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${mine ? "bg-ink text-white" : "bg-paper"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${mine ? "bg-palm text-white" : "bg-panel-2"}`}>
                 {m.listing_slug && <Link href={`/listing/${m.listing_slug}`} className="mb-0.5 block text-xs underline opacity-75">About: {m.listing_title}</Link>}
                 {m.order_number && <p className="mb-0.5 text-xs opacity-75">Order {m.order_number}</p>}
                 <p className="whitespace-pre-wrap break-words">{m.body}</p>

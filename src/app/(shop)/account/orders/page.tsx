@@ -17,11 +17,11 @@ export default async function Orders({ searchParams }: { searchParams: Promise<{
     <>
       <PageHead title="Your orders" />
       {placed && <p className="mb-4 rounded-xl bg-mint px-4 py-2.5 text-sm font-medium">Order placed. The seller will accept it soon.</p>}
-      {rows.length === 0 ? <Empty title="No orders yet" action={<LinkButton href="/search">Browse Campora</LinkButton>} /> : (
+      {rows.length === 0 ? <Empty title="No orders yet" action={<LinkButton href="/search">Browse Vybe Market</LinkButton>} /> : (
         <ul className="space-y-2">
           {rows.slice(0, 20).map((o) => (
             <li key={o.id}>
-              <Link href={`/account/orders/${o.id}`} className="flex items-center gap-3 rounded-tag border border-line bg-white p-3 hover:border-palm">
+              <Link href={`/account/orders/${o.id}`} className="flex items-center gap-3 rounded-tag border border-line bg-card p-3 hover:border-palm">
                 <Img path={o.logo_path} alt="" className="size-12 rounded-xl" />
                 <div className="min-w-0 flex-1"><p className="truncate font-medium">{o.items}</p><p className="text-sm text-mute">{o.store}, {shortDate(o.created_at)}</p></div>
                 <div className="text-right"><p className="font-semibold tabular-nums">{naira(o.total_kobo)}</p><Badge tone={statusTone(o.status)}>{ORDER_STATUS_LABEL[o.status]}</Badge></div>

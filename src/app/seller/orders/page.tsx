@@ -16,7 +16,7 @@ export default async function SellerOrders({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHead title="Orders" />
-      <div className="mb-4 flex gap-1 overflow-x-auto">{TABS.map(([v, l]) => <Link key={v} href={v ? `/seller/orders?status=${v}` : "/seller/orders"} className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium ${(status ?? "") === v ? "bg-ink text-white" : "border border-line bg-white"}`}>{l}</Link>)}</div>
+      <div className="mb-4 flex gap-1 overflow-x-auto">{TABS.map(([v, l]) => <Link key={v} href={v ? `/seller/orders?status=${v}` : "/seller/orders"} className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium ${(status ?? "") === v ? "bg-panel text-white" : "border border-line bg-card"}`}>{l}</Link>)}</div>
       {rows.length === 0 ? <Empty title="No orders here" /> : (
         <Table head={["Order", "Customer", "Total", "Payment", "Status", "Placed"]}>
           {rows.map((o) => (

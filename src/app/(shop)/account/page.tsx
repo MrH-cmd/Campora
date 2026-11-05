@@ -3,6 +3,7 @@ import { ActionButton, Field, Form, ImagePicker, Submit } from "@/components/for
 import { Badge, Card, LinkButton, PageHead, statusTone } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { asUser } from "@/lib/db";
+import { emailEnabled } from "@/lib/email";
 
 export const metadata = { title: "Account" };
 
@@ -18,7 +19,7 @@ export default async function Account({ searchParams }: { searchParams: Promise<
           <h2 className="text-lg font-bold">Getting set up</h2>
           <ul className="mt-2 space-y-3 text-sm">
             <li className="flex items-center justify-between gap-2"><span>Email</span>
-              {u.email_verified_at ? <Badge tone="green">Verified</Badge> : <ActionButton action={resendVerification}>Resend link</ActionButton>}</li>
+              {u.email_verified_at ? <Badge tone="green">Verified</Badge> : emailEnabled() ? <ActionButton action={resendVerification}>Resend link</ActionButton> : <Badge>Not required yet</Badge>}</li>
             <li className="flex items-center justify-between gap-2"><span>Student status</span>
               {u.student_status === "verified" ? <Badge tone="green">Verified</Badge> : <LinkButton size="sm" variant="outline" href="/account/verification">{u.student_status === "pending" ? "In review" : "Verify now"}</LinkButton>}</li>
             <li className="flex items-center justify-between gap-2"><span>Account</span><Badge tone={statusTone(u.status)}>{u.status}</Badge></li>

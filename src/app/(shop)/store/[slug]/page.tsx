@@ -1,7 +1,7 @@
 import { MapPin, MessageCircle, Phone, Star } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { sendEnquiry } from "@/app/actions/shop";
+import { report, sendEnquiry } from "@/app/actions/shop";
 import { Field, Form, Submit } from "@/components/form";
 import { CardGrid, ListingCard } from "@/components/listing-card";
 import { Reveal } from "@/components/motion";
@@ -46,7 +46,7 @@ export default async function Store({ params }: P) {
       </div>
       <div className="mx-auto max-w-6xl px-4">
         <div className="relative -mt-10 flex items-end justify-between gap-4">
-          <Img path={s.logo_path} alt={`${s.name} logo`} className="size-24 rounded-2xl border-4 border-paper bg-white" />
+          <Img path={s.logo_path} alt={`${s.name} logo`} className="size-24 rounded-2xl border-4 border-paper bg-card" />
           <div className="flex items-center gap-2"><ShareButton /><FavButton storefrontId={s.id} initial={d.fav} /></div>
         </div>
         <h1 className="mt-3 text-3xl font-bold">{s.name}</h1>
@@ -70,14 +70,14 @@ export default async function Store({ params }: P) {
           <section>
             <h2 className="mb-3 text-2xl font-bold">Reviews</h2>
             {d.reviews.length === 0 ? <p className="text-mute">No reviews yet.</p> : d.reviews.map((r) => (
-              <div key={r.id} className="mb-2 rounded-tag border border-line bg-white p-3">
-                <p className="text-sm font-semibold">{r.author ?? "Campora buyer"}, {r.rating}/5</p>
+              <div key={r.id} className="mb-2 rounded-tag border border-line bg-card p-3">
+                <p className="text-sm font-semibold">{r.author ?? "Verified buyer"}, {r.rating}/5</p>
                 {r.body && <p className="text-sm text-ink-3">{r.body}</p>}
               </div>
             ))}
           </section>
           {s.owner_id !== u?.id && (
-            <section className="rounded-tag border border-line bg-white p-4">
+            <section className="rounded-tag border border-line bg-card p-4">
               <h2 className="flex items-center gap-2 text-xl font-bold"><MessageCircle size={20} aria-hidden />Message {s.name}</h2>
               <Form action={sendEnquiry} className="mt-2 space-y-2">
                 <input type="hidden" name="storefront_id" value={s.id} /><input type="hidden" name="back" value={`/store/${s.slug}`} />
@@ -87,6 +87,17 @@ export default async function Store({ params }: P) {
             </section>
           )}
         </div>
+        {u && s.owner_id !== u.id && (
+          <details className="mt-8 text-sm text-mute">
+            <summary className="cursor-pointer">Report this business</summary>
+            <Form action={report} resetOnSuccess className="mt-2 max-w-sm space-y-2">
+              <input type="hidden" name="target_type" value="storefront" /><input type="hidden" name="target_id" value={s.id} />
+              <Field label="What's wrong?" name="reason" as="select"><option>Scam or fraud</option><option>Impersonation</option><option>Offensive content</option></Field>
+              <Field label="Details" name="details" as="textarea" rows={2} />
+              <Submit variant="outline" size="sm">Send report</Submit>
+            </Form>
+          </details>
+        )}
       </div>
     </div>
   );

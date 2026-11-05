@@ -16,9 +16,9 @@ export default async function Inbox() {
   return (
     <>
       <PageHead title="Messages" />
-      {rows.length === 0 ? <Empty title="No conversations yet" body="Message a seller from any listing or storefront." action={<LinkButton href="/search">Browse Campora</LinkButton>} /> : (
+      {rows.length === 0 ? <Empty title="No conversations yet" body="Message a seller from any listing or storefront." action={<LinkButton href="/search">Browse Vybe Market</LinkButton>} /> : (
         <ul className="space-y-2">{rows.map((c) => (
-          <li key={c.id}><Link href={`/messages/${c.id}`} className="flex items-center gap-3 rounded-tag border border-line bg-white p-3 hover:border-palm">
+          <li key={c.id}><Link href={`/messages/${c.id}`} className="flex items-center gap-3 rounded-tag border border-line bg-card p-3 hover:border-palm">
             <Img path={c.logo_path} alt="" className="size-12 rounded-xl" />
             <div className="min-w-0 flex-1"><p className="truncate font-semibold">{c.buyer_id === u.id ? c.store : c.buyer}</p><p className="truncate text-sm text-mute">{c.last}</p></div>
             <div className="text-right text-xs text-mute">{timeAgo(c.last_message_at)}{c.unread > 0 && <span className="ml-auto mt-1 grid size-5 place-items-center rounded-full bg-palm font-bold text-white">{c.unread}</span>}</div>

@@ -14,7 +14,7 @@ const user = (email: string) => asSystem((db) => db.one(
   "select id,email,full_name,role,status,student_status,university_id,email_verified_at,phone,avatar_path from users where email=$1", [email]));
 
 beforeAll(() => {
-  execSync("npx tsx scripts/migrate.ts --reset && npx tsx scripts/seed.ts", { env: { ...process.env, DATABASE_URL: url }, stdio: "pipe" });
+  execSync("npx tsx scripts/migrate.ts --reset && npx tsx scripts/seed.ts --sample", { env: { ...process.env, DATABASE_URL: url }, stdio: "pipe" });
 });
 beforeAll(async () => {
   buyer = await user("buyer@campora.test"); admin = await user("admin@campora.test");
@@ -128,6 +128,7 @@ describe("orders", () => {
     await asSystem((db) => db.run("delete from cart_items"));
   });
   it("refuses unverified emails and buying from yourself", async () => {
+    process.env.EMAIL_DRIVER = "outbox";
     await cart(buyer.id, listing.id);
     await expect(placeOrders({ ...buyer, email_verified_at: null }, pickup)).rejects.toThrow(/Verify/);
     await asSystem((db) => db.run("delete from cart_items"));
@@ -156,6 +157,19 @@ describe("orders", () => {
     const s1 = await stock();
     await changeOrderStatus(buyer, o2.id, "cancelled");
     expect(await stock()).toBe(s1 + 1);
+  });
+});
+
+describe("email gating", () => {
+  it("enforces email verification only when email can really be sent", async () => {
+    const saved = process.env.EMAIL_DRIVER; delete process.env.EMAIL_DRIVER; delete process.env.RESEND_API_KEY;
+    await cart(buyer.id, listing.id);
+    const r = await placeOrders({ ...buyer, email_verified_at: null }, pickup);
+    expect(r.orderIds.length).toBe(1);
+    process.env.EMAIL_DRIVER = "outbox";
+    await cart(buyer.id, listing.id);
+    await expect(placeOrders({ ...buyer, email_verified_at: null }, pickup)).rejects.toThrow(/Verify/);
+    process.env.EMAIL_DRIVER = saved ?? ""; await asSystem((db) => db.run("delete from cart_items"));
   });
 });
 

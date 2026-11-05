@@ -35,8 +35,8 @@ export default async function Search({ searchParams }: { searchParams: Promise<R
     if (type !== "all") add("kind=?", type);
     if (p.category) add("category_slug=?", p.category);
     if (uni) add("university_id=?", uni);
-    if (p.min) add("effective_price_kobo>=?", toKobo(p.min));
-    if (p.max) add("effective_price_kobo<=?", toKobo(p.max));
+    if (Number(p.min) > 0) add("effective_price_kobo>=?", toKobo(p.min!));
+    if (Number(p.max) > 0) add("effective_price_kobo<=?", toKobo(p.max!));
     if (p.available === "1") where.push("in_stock");
     const order = { price_asc: "effective_price_kobo asc", price_desc: "effective_price_kobo desc", popular: "sold_count desc, rating desc", newest: "created_at desc" }[p.sort ?? ""]
       ?? (q ? `ts_rank(search, websearch_to_tsquery('english',$1)) desc, created_at desc` : "created_at desc");
@@ -50,16 +50,16 @@ export default async function Search({ searchParams }: { searchParams: Promise<R
   const shown = rows.slice(0, PER);
   const tab = (t: string, label: string) => (
     <Link key={t} href={`/search?${new URLSearchParams({ ...(q ? { q } : {}), type: t })}`} aria-current={type === t ? "page" : undefined}
-      className={`rounded-full px-4 py-1.5 text-sm font-semibold ${type === t ? "bg-ink text-white" : "bg-white text-ink-3 border border-line"}`}>{label}</Link>
+      className={`rounded-full px-4 py-1.5 text-sm font-semibold ${type === t ? "bg-panel text-white" : "bg-card text-ink-3 border border-line"}`}>{label}</Link>
   );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
-      <h1 className="text-2xl font-bold sm:text-3xl">{q ? `Results for "${q}"` : "Browse Campora"}</h1>
+      <h1 className="text-2xl font-bold sm:text-3xl">{q ? `Results for "${q}"` : "Browse Vybe Market"}</h1>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{tab("all", "Everything")}{tab("product", "Products")}{tab("service", "Services")}{tab("store", "Businesses")}</div>
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[230px_1fr]">
-        <details className="rounded-tag border border-line bg-white p-4 lg:h-fit" open={undefined}>
+        <details className="rounded-tag border border-line bg-card p-4 lg:h-fit" open={undefined}>
           <summary className="cursor-pointer font-semibold">Filters and sort</summary>
           <form className="mt-3 space-y-3 text-sm">
             {q && <input type="hidden" name="q" value={q} />}
@@ -101,7 +101,7 @@ export default async function Search({ searchParams }: { searchParams: Promise<R
           ) : type === "store" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {shown.map((s) => (
-                <Link key={s.id} href={`/store/${s.slug}`} className="flex items-center gap-3 rounded-tag border border-line bg-white p-3 hover:border-palm">
+                <Link key={s.id} href={`/store/${s.slug}`} className="flex items-center gap-3 rounded-tag border border-line bg-card p-3 hover:border-palm">
                   <Img path={s.logo_path} alt="" className="size-14 rounded-xl" />
                   <div className="min-w-0"><p className="truncate font-semibold">{s.name}</p><p className="truncate text-sm text-mute">{s.tagline}</p><p className="text-xs text-mute">{s.short_name}</p></div>
                 </Link>

@@ -1,5 +1,5 @@
 {
-  "name": "campora",
+  "name": "vybe-market",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,7 @@
     "lint": "tsc --noEmit",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
-    "db:reset": "tsx scripts/migrate.ts --reset && tsx scripts/seed.ts",
+    "db:reset": "tsx scripts/migrate.ts --reset && tsx scripts/seed.ts --sample",
     "test": "vitest run",
     "test:e2e": "tsx tests/e2e/run.ts"
   },

@@ -17,10 +17,10 @@ export default async function Cart() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
       <h1 className="mb-5 text-3xl font-bold">Your cart</h1>
-      {items.length === 0 ? <Empty title="Your cart is empty" body="Find something good from students on campus." action={<LinkButton href="/search">Browse Campora</LinkButton>} /> : (
+      {items.length === 0 ? <Empty title="Your cart is empty" body="Find something good from students on campus." action={<LinkButton href="/search">Browse Vybe Market</LinkButton>} /> : (
         <>
           {stores.map((name) => (
-            <section key={name} className="mb-4 rounded-tag border border-line bg-white p-4">
+            <section key={name} className="mb-4 rounded-tag border border-line bg-card p-4">
               <h2 className="mb-2 font-sans text-sm font-semibold tracking-normal text-mute">{name}</h2>
               <ul className="divide-y divide-line">
                 {items.filter((i) => i.store_name === name).map((i) => (
@@ -38,7 +38,7 @@ export default async function Cart() {
               </ul>
             </section>
           ))}
-          <div className="flex items-center justify-between rounded-tag bg-ink p-4 text-white">
+          <div className="flex items-center justify-between rounded-tag bg-panel p-4 text-white">
             <p><span className="text-white/70">Total </span><span className="display text-2xl font-bold tabular-nums">{naira(total)}</span></p>
             {problem ? <span className="text-sm">Fix the items above</span> : <LinkButton href="/checkout">Check out</LinkButton>}
           </div>

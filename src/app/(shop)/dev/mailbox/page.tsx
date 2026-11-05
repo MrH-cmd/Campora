@@ -11,7 +11,7 @@ export default async function Mailbox() {
     <div className="mx-auto max-w-2xl px-4 py-6">
       <h1 className="text-2xl font-bold">Development mailbox</h1>
       <ul className="mt-4 space-y-2">{rows.map((m) => (
-        <li key={m.id} className="rounded-xl border border-line bg-white p-3 text-sm" data-to={m.to_email}><p className="font-semibold">{m.subject}</p><p className="text-mute">To {m.to_email}</p><pre className="mt-1 whitespace-pre-wrap break-all">{m.body}</pre></li>
+        <li key={m.id} className="rounded-xl border border-line bg-card p-3 text-sm" data-to={m.to_email}><p className="font-semibold">{m.subject}</p><p className="text-mute">To {m.to_email}</p><pre className="mt-1 whitespace-pre-wrap break-all">{m.body}</pre></li>
       ))}</ul>
     </div>
   );

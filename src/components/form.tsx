@@ -63,7 +63,7 @@ export function Submit({ children, variant = "primary", size = "md", className =
       <AnimatePresence>
         {open && (
           <motion.div className="fixed inset-0 z-50 grid place-items-end bg-ink/40 p-0 sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div role="alertdialog" aria-modal aria-label="Confirm" className="w-full rounded-t-2xl bg-white p-5 sm:max-w-sm sm:rounded-2xl"
+            <motion.div role="alertdialog" aria-modal aria-label="Confirm" className="w-full rounded-t-2xl bg-card p-5 sm:max-w-sm sm:rounded-2xl"
               initial={{ y: 24, scale: .98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 24 }}>
               <p className="font-semibold">{message}</p>
               <div className="mt-4 flex justify-end gap-2">
@@ -104,14 +104,35 @@ export function ActionButton({ action, values, children, variant = "outline", si
   );
 }
 
+/** Shrinks photos in the browser so uploads stay fast on mobile data and within the hosting body limit. */
+async function shrink(file: File) {
+  if (file.size < 400_000) return file;
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) return file;
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", .82));
+  return blob ? new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }) : file;
+}
+
 export function ImagePicker({ name = "images", max, existing = 0, multiple = true }: { name?: string; max: number; existing?: number; multiple?: boolean }) {
   const [previews, setPreviews] = useState<string[]>([]);
   const left = max - existing;
   return (
     <div>
       <input type="file" name={name} multiple={multiple} accept="image/jpeg,image/png,image/webp" className="input" aria-label="Choose images"
-        onChange={(e) => setPreviews(Array.from(e.target.files ?? []).map((f) => URL.createObjectURL(f)))} />
-      <p className="mt-1 text-xs text-mute">{multiple ? `You can add ${Math.max(left, 0)} more on your plan. ` : ""}JPG, PNG or WebP up to 5 MB.</p>
+        onChange={async (e) => {
+          const input = e.currentTarget;
+          const list = Array.from(input.files ?? []);
+          const done = await Promise.all(list.map(shrink));
+          const dt = new DataTransfer();
+          done.forEach((f) => dt.items.add(f));
+          input.files = dt.files;
+          setPreviews(done.map((f) => URL.createObjectURL(f)));
+        }} />
+      <p className="mt-1 text-xs text-mute">{multiple ? `You can add ${Math.max(left, 0)} more on your plan. ` : ""}JPG, PNG or WebP.</p>
       {previews.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}

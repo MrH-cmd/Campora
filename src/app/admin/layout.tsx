@@ -5,5 +5,5 @@ const LINKS: [string, string][] = [["/admin", "Overview"], ["/admin/users", "Use
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
-  return <DashShell title="Campora admin" links={LINKS}>{children}</DashShell>;
+  return <DashShell title="Vybe admin" links={LINKS}>{children}</DashShell>;
 }

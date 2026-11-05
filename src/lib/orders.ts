@@ -1,7 +1,7 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { ActionError, type SessionUser } from "./auth";
 import { asSystem, type Db } from "./db";
-import { appUrl } from "./email";
+import { appUrl, emailEnabled } from "./email";
 import { notify } from "./notify";
 import { getProvider } from "./payments/providers";
 import { beginPayment, grantMonthlyCredits, newReference } from "./payments/settle";
@@ -16,7 +16,7 @@ export type CheckoutInput = {
 
 /** Prices come from the database at this moment. Nothing about price is accepted from the browser. */
 export async function placeOrders(user: SessionUser, input: CheckoutInput) {
-  if (!user.email_verified_at) throw new ActionError("Verify your email before placing an order.");
+  if (emailEnabled() && !user.email_verified_at) throw new ActionError("Verify your email before placing an order.");
   if (user.status !== "active") throw new ActionError("Your account can't place orders right now.");
 
   if (input.paymentMethod === "online") getProvider(input.provider ?? "");

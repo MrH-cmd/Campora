@@ -133,7 +133,7 @@ export const report = action(z.object({
   const u = await signedIn();
   await rateLimit(`report:${u.id}`, 10, 3600);
   await asUser(u.id, (db) => db.run("insert into reports(reporter_id,target_type,target_id,reason,details) values ($1,$2,$3,$4,$5)", [u.id, d.target_type, d.target_id, d.reason, d.details]));
-  return "Report sent to the Campora team.";
+  return "Report sent to the Vybe Market team.";
 });
 
 export const openDispute = action(z.object({ order_id: id, reason: text(10, 800, "Reason") }), async (d) => {

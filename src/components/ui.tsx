@@ -6,20 +6,21 @@ export function Logo({ light = false }: { light?: boolean }) {
   return (
     <span className={`display inline-flex items-center gap-2 text-xl font-bold ${light ? "text-white" : "text-ink"}`}>
       <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden>
-        <path d="M6 3h20a3 3 0 0 1 3 3v6a4 4 0 0 0 0 8v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-6a4 4 0 0 0 0-8V6a3 3 0 0 1 3-3Z" fill="#0B8F5A" />
-        <path d="M21 11.5a7 7 0 1 0 0 9" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" />
+        <defs><linearGradient id="vy" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#a855f7" /><stop offset="1" stopColor="#6d28d9" /></linearGradient></defs>
+        <path d="M6 3h20a3 3 0 0 1 3 3v6a4 4 0 0 0 0 8v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-6a4 4 0 0 0 0-8V6a3 3 0 0 1 3-3Z" fill="url(#vy)" />
+        <path d="m10 10 6 12 6-12" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      Campora
+      Vybe Market
     </span>
   );
 }
 
 const btn = {
-  primary: "bg-palm text-white hover:bg-palm-deep shadow-[0_1px_0_rgba(255,255,255,.25)_inset]",
-  dark: "bg-ink text-white hover:bg-ink-2",
-  outline: "border border-line bg-white text-ink hover:border-ink-3",
+  primary: "shine bg-palm text-white hover:bg-palm-hover shadow-[0_8px_24px_-10px_#7c3aed]",
+  dark: "border border-line bg-panel-2 text-white hover:border-palm",
+  outline: "border border-line bg-card text-ink hover:border-ink-3",
   ghost: "text-ink-3 hover:bg-ink/5",
-  danger: "bg-white text-coral border border-coral/40 hover:bg-coral hover:text-white",
+  danger: "bg-card text-coral border border-coral/40 hover:bg-coral hover:text-white",
 };
 export const buttonClass = (v: keyof typeof btn = "primary", size: "sm" | "md" | "lg" = "md") =>
   `inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition active:scale-[.97] disabled:opacity-50 disabled:pointer-events-none ${btn[v]} ${
@@ -41,7 +42,7 @@ export function Price({ kobo, was, from, className = "" }: { kobo: number | stri
 }
 
 export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "green" | "amber" | "red" | "ink" }) {
-  const t = { neutral: "bg-ink/6 text-ink-3", green: "bg-mint text-palm-deep", amber: "bg-sun/30 text-[#7a5200]", red: "bg-coral/12 text-coral", ink: "bg-ink text-white" }[tone];
+  const t = { neutral: "bg-ink/6 text-ink-3", green: "bg-mint text-palm-deep", amber: "bg-sun/15 text-sun", red: "bg-coral/12 text-coral", ink: "bg-panel text-white" }[tone];
   return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${t}`}>{children}</span>;
 }
 
@@ -52,7 +53,7 @@ export const statusTone = (s: string): "neutral" | "green" | "amber" | "red" =>
 
 export function Empty({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
   return (
-    <div className="rounded-tag border border-dashed border-line bg-white/60 px-6 py-12 text-center">
+    <div className="rounded-tag border border-dashed border-line bg-card/60 px-6 py-12 text-center">
       <p className="display text-lg font-semibold">{title}</p>
       {body && <p className="mx-auto mt-1 max-w-sm text-sm text-mute">{body}</p>}
       {action && <div className="mt-4">{action}</div>}
@@ -71,7 +72,7 @@ export function PageHead({ title, sub, action }: { title: string; sub?: string; 
 
 export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
-    <div className="rounded-tag border border-line bg-white p-4">
+    <div className="rounded-tag border border-line bg-card p-4">
       <p className="text-sm text-mute">{label}</p>
       <p className="display mt-1 text-2xl font-bold tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-xs text-mute">{hint}</p>}
@@ -80,7 +81,7 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-tag border border-line bg-white p-4 sm:p-5 ${className}`}>{children}</section>;
+  return <section className={`rounded-tag border border-line bg-card p-4 sm:p-5 ${className}`}>{children}</section>;
 }
 
 export function Img({ path, alt, className = "" }: { path?: string | null; alt: string; className?: string }) {
@@ -92,7 +93,7 @@ export function Img({ path, alt, className = "" }: { path?: string | null; alt: 
 
 export function Table({ head, children }: { head: string[]; children: ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-tag border border-line bg-white">
+    <div className="overflow-x-auto rounded-tag border border-line bg-card">
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead><tr className="border-b border-line text-mute">{head.map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-line">{children}</tbody>

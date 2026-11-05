@@ -27,7 +27,7 @@ export default async function Storefront() {
           <h2 className="font-bold">Customization</h2>
           {custom >= 1 ? (
             <>
-              <Field label="Accent colour" name="accent" type="color" defaultValue={s?.accent ?? "#0B8F5A"} className="input mt-1 h-12" />
+              <Field label="Accent colour" name="accent" type="color" defaultValue={s?.accent ?? "#7C3AED"} className="input mt-1 h-12" />
               <Field label="Announcement banner" name="announcement" defaultValue={s?.announcement ?? ""} />
             </>
           ) : <p className="text-sm text-mute">Accent colours and announcement banners come with <Link className="underline" href="/seller/billing">No Dulling</Link>.</p>}

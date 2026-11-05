@@ -3,6 +3,7 @@ import { Field, Form, ImagePicker, Submit } from "@/components/form";
 import { Badge, Card, PageHead, statusTone } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { asUser } from "@/lib/db";
+import { emailEnabled } from "@/lib/email";
 import { shortDate } from "@/lib/format";
 
 export const metadata = { title: "Student verification" };
@@ -18,7 +19,7 @@ export default async function Verify() {
       <PageHead title="Student verification" sub={`${d.uni?.name ?? "No university chosen"}. Verified students can apply to sell.`} action={<Badge tone={statusTone(u.student_status)}>{u.student_status}</Badge>} />
       {u.student_status !== "verified" && (
         <div className="grid gap-4 md:grid-cols-2">
-          {methods.includes("student_email") && (
+          {methods.includes("student_email") && emailEnabled() && (
             <Card>
               <h2 className="text-lg font-bold">Use your student email</h2>
               <p className="text-sm text-mute">Fastest option. We send a link to your {d.uni.student_email_domains.join(" or ")} address.</p>

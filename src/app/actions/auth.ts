@@ -4,7 +4,7 @@ import { z } from "zod";
 import { action, id, optional, text } from "@/lib/action";
 import { ActionError, endSession, hashPassword, hashToken, newToken, rateLimit, requireUser, startSession, verifyPassword } from "@/lib/auth";
 import { asSystem, asUser, type Db } from "@/lib/db";
-import { appUrl, sendEmail } from "@/lib/email";
+import { appUrl, emailEnabled, sendEmail } from "@/lib/email";
 import { saveImage } from "@/lib/storage";
 
 const email = z.string().trim().toLowerCase().email("Enter a valid email address");
@@ -24,7 +24,7 @@ async function consumeToken(db: Db, token: string, kind: string) {
     [hashToken(token), kind]);
 }
 
-const safeNext = (n?: string | null) => (n && n.startsWith("/") && !n.startsWith("//") ? n : "/");
+const safeNext = (n?: string | null) => (n && /^\/(?![\\/])/.test(n) ? n : "/");
 
 export const register = action(z.object({
   full_name: text(2, 80, "Your name"), email, password, university_id: id, next: z.string().optional(),
@@ -40,7 +40,7 @@ export const register = action(z.object({
     if (!u) throw new ActionError("An account with this email already exists. Log in instead.");
     return { id: u.id, token: await issueToken(db, u.id, "email_verify", 48) };
   });
-  await sendEmail(d.email, "Verify your Campora email", `Hi ${d.full_name},\n\nConfirm your email: ${appUrl(`/verify-email?token=${created.token}`)}\n\nThis link lasts 48 hours.`);
+  await sendEmail(d.email, "Verify your Vybe Market email", `Hi ${d.full_name},\n\nConfirm your email: ${appUrl(`/verify-email?token=${created.token}`)}\n\nThis link lasts 48 hours.`);
   await startSession(created.id);
   redirect(safeNext(d.next) === "/" ? "/account?welcome=1" : safeNext(d.next));
 });
@@ -51,7 +51,7 @@ export const login = action(z.object({ email, password: z.string().min(1, "Enter
   // Same scrypt cost for unknown emails, so response time doesn't reveal who has an account.
   const ok = await verifyPassword(d.password, u?.password_hash ?? "scrypt$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
   if (!u || !ok) throw new ActionError("That email and password don't match.");
-  if (u.status === "suspended") throw new ActionError("This account is suspended. Contact Campora support.");
+  if (u.status === "suspended") throw new ActionError("This account is suspended. Contact Vybe Market support.");
   await startSession(u.id);
   redirect(safeNext(d.next));
 });
@@ -62,12 +62,13 @@ export async function logout() {
 }
 
 export const forgotPassword = action(z.object({ email }), async (d) => {
+  if (!emailEnabled()) throw new ActionError("Password reset email isn't available yet. Ask a Vybe Market admin for help.");
   await rateLimit(`forgot:${d.email}`, 3, 3600);
   const hit = await asSystem(async (db) => {
     const u = await db.one("select id from users where lower(email)=$1", [d.email]);
     return u ? await issueToken(db, u.id, "password_reset", 1) : null;
   });
-  if (hit) await sendEmail(d.email, "Reset your Campora password", `Reset it here: ${appUrl(`/reset-password?token=${hit}`)}\n\nThis link lasts one hour. If you didn't ask for it, ignore this email.`);
+  if (hit) await sendEmail(d.email, "Reset your Vybe Market password", `Reset it here: ${appUrl(`/reset-password?token=${hit}`)}\n\nThis link lasts one hour. If you didn't ask for it, ignore this email.`);
   return "If that email has an account, a reset link is on its way.";
 });
 
@@ -103,9 +104,11 @@ export async function confirmStudentEmail(token: string) {
 
 export const resendVerification = action(z.object({}), async () => {
   const u = await requireUser();
+  if (!emailEnabled()) throw new ActionError("Email sending isn't set up yet.");
   await rateLimit(`resend:${u.id}`, 3, 3600);
   const token = await asSystem((db) => issueToken(db, u.id, "email_verify", 48));
-  await sendEmail(u.email, "Verify your Campora email", `Confirm your email: ${appUrl(`/verify-email?token=${token}`)}`);
+  const sent = await sendEmail(u.email, "Verify your Vybe Market email", `Confirm your email: ${appUrl(`/verify-email?token=${token}`)}`);
+  if (!sent) throw new ActionError("The email couldn't be sent. Try again in a few minutes.");
   return "Verification email sent.";
 });
 
@@ -128,12 +131,15 @@ export const changePassword = action(z.object({ current: z.string(), password })
     const row = await db.one("select password_hash from users where id=$1", [u.id]);
     if (!(await verifyPassword(d.current, row.password_hash))) throw new ActionError("Your current password isn't right.");
     await db.run("update users set password_hash=$2 where id=$1", [u.id, await hashPassword(d.password)]);
+    await db.run("delete from sessions where user_id=$1", [u.id]);
   });
-  return "Password changed.";
+  await startSession(u.id);
+  return "Password changed. Other devices have been logged out.";
 });
 
 export const submitStudentEmail = action(z.object({ student_email: email, matric_number: optional(30) }), async (d) => {
   const u = await requireUser();
+  if (!emailEnabled()) throw new ActionError("Student email checks aren't available yet. Upload your ID instead.");
   await rateLimit(`student:${u.id}`, 5, 3600);
   const token = await asSystem(async (db) => {
     const uni = await db.one("select * from universities where id=$1", [u.university_id]);
@@ -147,7 +153,8 @@ export const submitStudentEmail = action(z.object({ student_email: email, matric
     await db.run("update users set student_status='pending' where id=$1", [u.id]);
     return issueToken(db, u.id, "student_email", 24, { verification_id: v.id });
   });
-  await sendEmail(d.student_email, "Confirm your student email", `Confirm you're a student: ${appUrl(`/verify-student?token=${token}`)}`);
+  const sent = await sendEmail(d.student_email, "Confirm your student email", `Confirm you're a student: ${appUrl(`/verify-student?token=${token}`)}`);
+  if (!sent) throw new ActionError("The email couldn't be sent. Try again, or upload your ID instead.");
   return `Confirmation sent to ${d.student_email}.`;
 });
 
@@ -169,7 +176,7 @@ export const applyForSeller = action(z.object({
   business_name: text(2, 80, "Business name"), business_type: text(2, 60, "Business type"), pitch: text(20, 800, "Your description"),
 }), async (d) => {
   const u = await requireUser();
-  if (!u.email_verified_at) throw new ActionError("Verify your email first.");
+  if (emailEnabled() && !u.email_verified_at) throw new ActionError("Verify your email first.");
   if (u.student_status !== "verified") throw new ActionError("Verify your student status first.");
   await asSystem((db) => db.run(
     `insert into seller_profiles(user_id,business_name,business_type,pitch) values ($1,$2,$3,$4)

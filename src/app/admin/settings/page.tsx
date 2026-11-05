@@ -80,7 +80,7 @@ export default async function Settings() {
         <section><h2 className="mb-2 text-lg font-bold">Homepage campaigns and ads</h2>
           <Card className="max-w-xl">
             <Form action={saveCampaign} resetOnSuccess className="space-y-2">
-              <Field label="Title" name="title" /><Field label="Message" name="body" /><Field label="Link on Campora" name="href" placeholder="/search?category=food" />
+              <Field label="Title" name="title" /><Field label="Message" name="body" /><Field label="Link on Vybe Market" name="href" placeholder="/search?category=food" />
               <Field label="Days live" name="days" type="number" defaultValue={7} />
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_sponsored" className="accent-palm" />Paid placement (shows a Sponsored label)</label>
               <Submit size="sm">Publish campaign</Submit>

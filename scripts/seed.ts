@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -56,6 +55,13 @@ const STORES = [
   ]},
 ];
 
+const PICKUP_POINTS = ["University Chapel car park", "Centre for Learning Resources entrance", "Cafeteria 1", "Cafeteria 2",
+  "College of Science and Technology", "College of Engineering", "College of Management and Social Sciences", "College of Leadership Development Studies",
+  "University Stadium", "Daniel Hall gate", "Joseph Hall gate", "Paul Hall gate", "Peter Hall gate", "John Hall gate",
+  "Esther Hall gate", "Mary Hall gate", "Deborah Hall gate", "Lydia Hall gate", "Dorcas Hall gate"];
+
+const withSamples = process.argv.includes("--sample");
+
 async function main() {
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
@@ -67,7 +73,7 @@ async function main() {
   const cu = await one(
     `insert into universities(name,short_name,slug,city,state,verification_methods,student_email_domains,pickup_points)
      values ('Covenant University','CU','covenant-university','Ota','Ogun','{student_email,id_upload}','{stu.cu.edu.ng}',
-       '{"Chapel car park","Cafeteria 1","Cafeteria 2","University Library entrance","Daniel Hall gate","Esther Hall gate"}') returning id`);
+       $1) returning id`, [PICKUP_POINTS]);
 
   const cats: Record<string, string> = {};
   for (const [i, [slug, name, kind, icon]] of CATS.entries())
@@ -75,8 +81,8 @@ async function main() {
 
   const plans = [
     ["k-leg", "K-Leg", "For testing the market", 0, 5, 4, 0, 0, false, false, 0, ["One storefront", "Five active products or services", "Four photos per listing", "Basic enquiries and orders", "Basic promotions, ratings and statistics"]],
-    ["no-dulling", "No Dulling", "For businesses gaining pace", null, 20, 8, 1, 1, true, false, 0, ["One storefront", "20 active listings", "Eight photos per listing", "Advanced storefront customization", "Detailed analytics", "Advanced discounts and promotions"]],
-    ["odogwu", "Odogwu", "For the biggest shops on campus", null, 100, 12, 2, 2, true, true, 3, ["One storefront", "Up to 100 active listings", "Twelve photos per listing", "Full storefront customization", "Advanced analytics", "Marketing campaigns", "Monthly Store Boost credits"]],
+    ["no-dulling", "No Dulling", "For businesses gaining pace", 1500000, 20, 8, 1, 1, true, false, 0, ["One storefront", "20 active listings", "Eight photos per listing", "Advanced storefront customization", "Detailed analytics", "Advanced discounts and promotions"]],
+    ["odogwu", "Odogwu", "For the biggest shops on campus", 3000000, 100, 12, 2, 2, true, true, 3, ["One storefront", "Up to 100 active listings", "Twelve photos per listing", "Full storefront customization", "Advanced analytics", "Marketing campaigns", "Monthly Store Boost credits"]],
   ] as const;
   let free = "";
   for (const [i, p] of plans.entries()) {
@@ -92,7 +98,14 @@ async function main() {
   await pk("Top of search", "search_priority", 7, 1);
   await pk("Promoted storefront", "storefront_promoted", 7, 1);
 
-  const pw = await hashPassword(process.env.SEED_PASSWORD ?? (process.env.VERCEL ? randomBytes(32).toString("hex") : "campora-dev-1"));
+  if (!withSamples) {
+    await db.query("commit");
+    await db.end();
+    console.log("Seeded the university, categories, plans and settings.");
+    return;
+  }
+
+  const pw = await hashPassword(process.env.SEED_PASSWORD ?? "campora-dev-1");
   const user = async (email: string, name: string, role: string, student = "verified") => (await one(
     `insert into users(email,password_hash,full_name,university_id,role,email_verified_at,student_status,is_sample) values ($1,$2,$3,$4,$5,now(),$6,true) returning id`,
     [email, pw, name, cu.id, role, student])).id;

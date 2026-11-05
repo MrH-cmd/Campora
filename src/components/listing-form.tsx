@@ -11,7 +11,7 @@ export function ListingForm({ l, cats, photoLimit, photoCount }: { l?: any; cats
       {l ? <input type="hidden" name="kind" value={kind} /> : (
         <fieldset className="flex gap-2"><legend className="mb-1 text-sm font-medium">What are you listing?</legend>
           {["product", "service"].map((k) => (
-            <label key={k} className="flex cursor-pointer items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 capitalize has-checked:border-palm">
+            <label key={k} className="flex cursor-pointer items-center gap-2 rounded-xl border border-line bg-card px-4 py-2.5 capitalize has-checked:border-palm">
               <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => setKind(k)} className="accent-palm" />{k}
             </label>
           ))}
@@ -43,8 +43,8 @@ export function ListingForm({ l, cats, photoLimit, photoCount }: { l?: any; cats
       )}
       <label className="block text-sm font-medium">{kind === "service" ? "Portfolio images" : "Photos"}<ImagePicker max={photoLimit} existing={photoCount} /></label>
       <div className="flex gap-2 pt-1">
-        <button name="intent" value="publish" className="inline-flex h-11 items-center rounded-xl bg-palm px-5 font-semibold text-white hover:bg-palm-deep">Publish</button>
-        <button name="intent" value="draft" className="inline-flex h-11 items-center rounded-xl border border-line bg-white px-5 font-semibold">Save as draft</button>
+        <button name="intent" value="publish" className="inline-flex h-11 items-center rounded-xl bg-palm px-5 font-semibold text-white hover:bg-palm-hover">Publish</button>
+        <button name="intent" value="draft" className="inline-flex h-11 items-center rounded-xl border border-line bg-card px-5 font-semibold">Save as draft</button>
       </div>
     </Form>
   );

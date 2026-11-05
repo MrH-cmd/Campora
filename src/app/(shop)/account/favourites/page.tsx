@@ -14,8 +14,8 @@ export default async function Favs() {
   return (
     <>
       <PageHead title="Favourites" />
-      {!d.items.length && !d.stores.length && <Empty title="Nothing saved yet" body="Tap the heart on anything you want to find again." action={<LinkButton href="/search">Browse Campora</LinkButton>} />}
-      {d.stores.length > 0 && <div className="mb-6 flex flex-wrap gap-2">{d.stores.map((s) => <Link key={s.id} href={`/store/${s.slug}`} className="flex items-center gap-2 rounded-full border border-line bg-white py-1 pl-1 pr-3 font-medium"><Img path={s.logo_path} alt="" className="size-8 rounded-full" />{s.name}</Link>)}</div>}
+      {!d.items.length && !d.stores.length && <Empty title="Nothing saved yet" body="Tap the heart on anything you want to find again." action={<LinkButton href="/search">Browse Vybe Market</LinkButton>} />}
+      {d.stores.length > 0 && <div className="mb-6 flex flex-wrap gap-2">{d.stores.map((s) => <Link key={s.id} href={`/store/${s.slug}`} className="flex items-center gap-2 rounded-full border border-line bg-card py-1 pl-1 pr-3 font-medium"><Img path={s.logo_path} alt="" className="size-8 rounded-full" />{s.name}</Link>)}</div>}
       <CardGrid>{d.items.map((l) => <ListingCard key={l.id} l={l} faved />)}</CardGrid>
     </>
   );

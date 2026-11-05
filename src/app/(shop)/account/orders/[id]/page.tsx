@@ -60,7 +60,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <li key={i.id} className="py-2.5">
                 <div className="flex justify-between gap-2"><span>{i.quantity} × {i.title}</span><span className="tabular-nums">{naira(i.unit_price_kobo * i.quantity)}</span></div>
                 {o.status === "completed" && (i.rating ? <p className="text-sm text-mute">You rated this {i.rating}/5</p> : (
-                  <Form action={submitReview} className="mt-2 space-y-2 rounded-xl bg-paper p-3">
+                  <Form action={submitReview} className="mt-2 space-y-2 rounded-xl bg-panel-2 p-3">
                     <input type="hidden" name="order_item_id" value={i.id} />
                     <Field label="Rating" name="rating" as="select" defaultValue="5">{[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} star{n > 1 ? "s" : ""}</option>)}</Field>
                     <Field label="Your review" name="body" as="textarea" rows={2} />
@@ -76,7 +76,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       </div>
       <aside className="space-y-4">
         {open && o.payment_status !== "awaiting_payment" && (
-          <Card className="bg-ink text-white">
+          <Card className="border-palm bg-mint-soft text-white">
             <p className="text-sm text-white/70">Pickup code</p>
             <p className="display text-4xl font-bold tracking-widest">{o.pickup_code}</p>
             <p className="mt-1 text-sm text-white/70">Give this to the seller only when you have your item.</p>

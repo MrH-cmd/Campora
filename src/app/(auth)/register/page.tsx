@@ -10,7 +10,7 @@ export default async function Register({ searchParams }: { searchParams: Promise
   const unis = await asUser(null, (db) => db.rows("select id,name from universities where is_active order by name"));
   return (
     <>
-      <h1 className="text-3xl font-bold">Join Campora</h1>
+      <h1 className="text-3xl font-bold">Join Vybe Market</h1>
       <p className="mt-1 text-mute">Buy from students now. Apply to sell whenever you're ready.</p>
       <Form action={register} className="mt-5 space-y-3">
         <input type="hidden" name="next" value={p.next ?? ""} />

@@ -37,12 +37,14 @@ export const saveStorefront = action(z.object({
   accent: hex, layout: z.enum(["grid", "editorial"]).optional(), announcement: optional(160),
 }), async (d, form) => {
   const { user, store, plan } = await sellerContext();
+  if (user.status !== "active") throw new ActionError("Your account is restricted, so selling is paused.");
+  if (!user.university_id) throw new ActionError("Choose your university on your account page first.");
   const logo = form.get("logo") as File | null;
   const cover = form.get("cover") as File | null;
   const logoPath = logo?.size ? await saveImage(logo, "logos", user.id) : null;
   const coverPath = cover?.size ? await saveImage(cover, "covers", user.id) : null;
   // Plan features are decided here on the server, whatever the form sent.
-  const accent = plan.customization_level >= 1 && d.accent ? d.accent : store?.accent ?? "#0B8F5A";
+  const accent = plan.customization_level >= 1 && d.accent ? d.accent : store?.accent ?? "#7C3AED";
   const announcement = plan.customization_level >= 1 ? d.announcement : store?.announcement ?? null;
   const layout = plan.customization_level >= 2 && d.layout ? d.layout : store?.layout ?? "grid";
   await asUser(user.id, async (db) => {
@@ -273,4 +275,14 @@ export const endCampaign = action(z.object({ id }), async (d) => {
   const { user } = await activeStore();
   await asUser(user.id, (db) => db.run("update promotional_campaigns set is_active=false where id=$1", [d.id]));
   return "Campaign ended.";
+});
+
+const WIDGET_IDS = ["tasks", "stats", "sales", "activity", "plan", "earnings", "top"] as const;
+
+export const saveDashboard = action(z.object({ layout: z.string().max(200) }), async (d) => {
+  const { user } = await sellerContext();
+  const ids = d.layout.split(",").filter((x): x is (typeof WIDGET_IDS)[number] => (WIDGET_IDS as readonly string[]).includes(x));
+  await asUser(user.id, (db) => db.run("update seller_profiles set dashboard_layout=$2 where user_id=$1", [user.id, JSON.stringify([...new Set(ids)])]));
+  revalidatePath("/seller");
+  return "Dashboard saved.";
 });

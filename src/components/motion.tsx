@@ -1,7 +1,7 @@
 "use client";
-import { MotionConfig, motion, useReducedMotion } from "motion/react";
+import { MotionConfig, animate, motion, useReducedMotion, useScroll } from "motion/react";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { Children, useEffect, useRef, type ReactNode } from "react";
 
 export const MotionRoot = ({ children }: { children: ReactNode }) => <MotionConfig reducedMotion="user">{children}</MotionConfig>;
 
@@ -29,4 +29,44 @@ export function Float({ children, className, y = 10, duration = 6, delay = 0, ro
       {children}
     </motion.div>
   );
+}
+
+/** Children rise in one after another as the group scrolls into view. */
+export function Stagger({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <motion.div className={className} initial="hide" whileInView="show" viewport={{ once: true, margin: "-40px" }}
+      variants={{ show: { transition: { staggerChildren: .06 } } }}>
+      {Children.map(children, (c) => (
+        <motion.div variants={{ hide: { opacity: 0, y: 22, scale: .97 }, show: { opacity: 1, y: 0, scale: 1, transition: { duration: .45, ease: [.2, .7, .2, 1] } } }}>{c}</motion.div>
+      ))}
+    </motion.div>
+  );
+}
+
+export function WordsIn({ text, className }: { text: string; className?: string }) {
+  return (
+    <h1 className={className} aria-label={text}>
+      {text.split(" ").map((w, i) => (
+        <motion.span key={i} aria-hidden className="gradient-text mr-[.25em] inline-block" initial={{ opacity: 0, y: "60%", rotate: 3 }} animate={{ opacity: 1, y: 0, rotate: 0 }}
+          transition={{ duration: .6, delay: .05 + i * .07, ease: [.2, .7, .2, 1] }}>{w}</motion.span>
+      ))}
+    </h1>
+  );
+}
+
+export function CountUp({ value, format }: { value: number; format?: "naira" }) {
+  const reduced = useReducedMotion();
+  const ref = useRef<HTMLSpanElement>(null);
+  const show = (n: number) => (format === "naira" ? "₦" + Math.round(n).toLocaleString("en-NG") : Math.round(n).toLocaleString("en-NG"));
+  useEffect(() => {
+    if (reduced) return;
+    const c = animate(0, value, { duration: .9, ease: "easeOut", onUpdate: (n) => { if (ref.current) ref.current.textContent = show(n); } });
+    return () => c.stop();
+  }, [value, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <span ref={ref}>{show(value)}</span>;
+}
+
+export function ScrollProgress() {
+  const { scrollYProgress } = useScroll();
+  return <motion.div aria-hidden style={{ scaleX: scrollYProgress }} className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-gradient-to-r from-[#7c3aed] to-[#e879f9]" />;
 }

@@ -5,7 +5,7 @@ declare global { var __camporaPool: Pool | undefined; }
 function pool() {
   if (!global.__camporaPool) {
     if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
-    global.__camporaPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 10 });
+    global.__camporaPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000 });
   }
   return global.__camporaPool;
 }

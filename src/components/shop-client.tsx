@@ -15,7 +15,7 @@ export function FavButton({ listingId, storefrontId, initial }: { listingId?: st
   const path = usePathname();
   return (
     <button type="button" aria-pressed={on} aria-label={on ? "Remove from favourites" : "Save to favourites"}
-      className="grid size-9 place-items-center rounded-full bg-white/90 shadow-sm backdrop-blur transition hover:scale-110"
+      className="grid size-9 place-items-center rounded-full bg-card/90 shadow-sm backdrop-blur transition hover:scale-110"
       onClick={() => {
         set(!on);
         start(async () => {
@@ -37,7 +37,7 @@ export function AddToCart({ listingId, disabled, label = "Add to cart", max = 50
   const router = useRouter(); const path = usePathname();
   return (
     <div className="flex gap-2">
-      <div className="flex items-center rounded-xl border border-line bg-white">
+      <div className="flex items-center rounded-xl border border-line bg-card">
         <button type="button" aria-label="Fewer" className="grid size-12 place-items-center" onClick={() => setQty(Math.max(1, qty - 1))}><Minus size={16} aria-hidden /></button>
         <span className="w-6 text-center tabular-nums" aria-live="polite">{qty}</span>
         <button type="button" aria-label="More" className="grid size-12 place-items-center" onClick={() => setQty(Math.min(max, qty + 1))}><Plus size={16} aria-hidden /></button>

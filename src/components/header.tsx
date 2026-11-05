@@ -9,7 +9,7 @@ import { Logo, LinkButton } from "./ui";
 
 type U = { name: string; role: string } | null;
 
-const NAV = [{ href: "/search?type=product", label: "Products", key: "product" }, { href: "/search?type=service", label: "Services", key: "service" }, { href: "/search?type=store", label: "Businesses", key: "store" }, { href: "/pricing", label: "Sell on Campora", key: "sell" }];
+const NAV = [{ href: "/search?type=product", label: "Products", key: "product" }, { href: "/search?type=service", label: "Services", key: "service" }, { href: "/search?type=store", label: "Businesses", key: "store" }, { href: "/pricing", label: "Sell on Vybe", key: "sell" }];
 
 function Dot({ n }: { n: number }) {
   return (
@@ -55,7 +55,7 @@ export function Header({ user, cart, unread: initial }: { user: U; cart: number;
       <header className="sticky top-0 z-40 border-b border-line/70 bg-paper/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4">
           <button className="md:hidden" aria-label="Open menu" aria-expanded={menu} onClick={() => setMenu(true)}><Menu aria-hidden /></button>
-          <Link href="/" aria-label="Campora home"><Logo /></Link>
+          <Link href="/" aria-label="Vybe Market home"><Logo /></Link>
           <nav className="ml-4 hidden items-center lg:flex" aria-label="Main">
             {NAV.map((n) => {
               const active = n.key === "sell" ? path === "/pricing" : false;
@@ -68,25 +68,25 @@ export function Header({ user, cart, unread: initial }: { user: U; cart: number;
             })}
           </nav>
           <form onSubmit={search} role="search" className="ml-auto hidden max-w-xs flex-1 md:block">
-            <label className="flex h-10 items-center gap-2 rounded-xl border border-line bg-white px-3 focus-within:border-palm">
+            <label className="flex h-10 items-center gap-2 rounded-xl border border-line bg-card px-3 focus-within:border-palm">
               <Search size={16} className="text-mute" aria-hidden />
-              <span className="sr-only">Search Campora</span>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Campora" className="w-full bg-transparent text-sm outline-none" />
+              <span className="sr-only">Search Vybe Market</span>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Vybe Market" className="w-full bg-transparent text-sm outline-none" />
             </label>
           </form>
           <div className="ml-auto flex items-center gap-1 md:ml-0">
             {user ? (
               <>
-                <Link href="/notifications" aria-label={`Notifications, ${unread} unread`} className="relative hidden size-10 place-items-center rounded-xl hover:bg-ink/5 sm:grid"><Bell size={20} aria-hidden /><Dot n={unread} /></Link>
+                <Link href="/notifications" aria-label={`Notifications, ${unread} unread`} className="relative grid size-10 place-items-center rounded-xl hover:bg-ink/5"><Bell size={20} aria-hidden /><Dot n={unread} /></Link>
                 <Link href="/cart" aria-label={`Cart, ${cart} items`} className="relative grid size-10 place-items-center rounded-xl hover:bg-ink/5"><ShoppingBag size={20} aria-hidden /><Dot n={cart} /></Link>
                 <div className="relative hidden md:block" ref={box}>
-                  <button aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="ml-1 grid size-10 place-items-center rounded-full bg-ink text-sm font-bold text-white">
+                  <button aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="ml-1 grid size-10 place-items-center rounded-full bg-palm text-sm font-bold text-white">
                     {user.name[0]?.toUpperCase()}<span className="sr-only">Account menu</span>
                   </button>
                   <AnimatePresence>
                     {open && (
                       <motion.div role="menu" initial={{ opacity: 0, y: -6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: .14 }}
-                        className="absolute right-0 mt-2 w-56 origin-top-right rounded-2xl border border-line bg-white p-1.5 shadow-xl" onClick={() => setOpen(false)}>
+                        className="absolute right-0 mt-2 w-56 origin-top-right rounded-2xl border border-line bg-panel-2 p-1.5 shadow-xl" onClick={() => setOpen(false)}>
                         <MenuItems role={user.role} />
                       </motion.div>
                     )}
@@ -96,7 +96,7 @@ export function Header({ user, cart, unread: initial }: { user: U; cart: number;
             ) : (
               <>
                 <Link href="/login" className="hidden px-3 text-[15px] font-medium sm:block">Log in</Link>
-                <LinkButton href="/register" size="sm">Join Campora</LinkButton>
+                <LinkButton href="/register" size="sm">Join Vybe Market</LinkButton>
               </>
             )}
           </div>
@@ -106,11 +106,11 @@ export function Header({ user, cart, unread: initial }: { user: U; cart: number;
       <AnimatePresence>
         {menu && (
           <motion.div className="fixed inset-0 z-50 bg-ink/50 md:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenu(false)}>
-            <motion.div role="dialog" aria-label="Menu" className="h-full w-[82%] max-w-xs bg-white p-4" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
+            <motion.div role="dialog" aria-label="Menu" className="h-full w-[82%] max-w-xs overflow-y-auto bg-panel-2 p-4" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
               transition={{ type: "spring", stiffness: 380, damping: 38 }} onClick={(e) => e.stopPropagation()}>
               <div className="mb-4 flex items-center justify-between"><Logo /><button aria-label="Close menu" onClick={() => setMenu(false)}><X aria-hidden /></button></div>
-              <form onSubmit={search} role="search" className="mb-3"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Campora" aria-label="Search Campora" className="input" /></form>
-              {NAV.map((n) => <Link key={n.href} href={n.href} className="block rounded-lg px-3 py-3 font-medium hover:bg-paper">{n.label}</Link>)}
+              <form onSubmit={search} role="search" className="mb-3"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Vybe Market" aria-label="Search Vybe Market" className="input" /></form>
+              {NAV.map((n) => <Link key={n.href} href={n.href} className="block rounded-lg px-3 py-3 font-medium hover:bg-ink/5">{n.label}</Link>)}
               <hr className="my-2 border-line" />
               {user ? <MenuItems role={user.role} /> : <Link href="/login" className="block px-3 py-3 font-medium">Log in</Link>}
             </motion.div>
@@ -118,7 +118,7 @@ export function Header({ user, cart, unread: initial }: { user: U; cart: number;
         )}
       </AnimatePresence>
 
-      <nav aria-label="Quick links" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+      <nav aria-label="Quick links" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-panel/95 backdrop-blur pb-[env(safe-area-inset-bottom)] md:hidden">
         {[{ h: "/", l: "Home", I: Home }, { h: "/search", l: "Browse", I: LayoutGrid }, { h: "/messages", l: "Messages", I: MessageCircle }, { h: "/account/orders", l: "Orders", I: Package }, { h: "/account", l: "Me", I: User }].map(({ h, l, I }) => {
           const on = h === "/" ? path === "/" : path.startsWith(h);
           return (
@@ -134,7 +134,7 @@ export function Header({ user, cart, unread: initial }: { user: U; cart: number;
 }
 
 function MenuItems({ role }: { role: string }) {
-  const cls = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-[15px] hover:bg-paper";
+  const cls = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-[15px] hover:bg-ink/5";
   return (
     <>
       {role === "admin" && <Link role="menuitem" className={cls} href="/admin"><Shield size={17} aria-hidden />Admin</Link>}

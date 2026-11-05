@@ -84,7 +84,8 @@ export const resolveDispute = admin(z.object({ id, status: z.enum(["resolved_buy
   if (d.status === "resolved_buyer" && o.payment_status === "paid") {
     await db.run("insert into refunds(order_id,transaction_id,amount_kobo,reason) values ($1,$2,$3,$4) on conflict do nothing", [o.id, o.transaction_id, o.total_kobo, `Dispute: ${d.resolution}`]);
   }
-  for (const u of [o.buyer_id, o.owner_id]) await notify(db, u, `Dispute on ${o.number} closed`, d.resolution, `/account/orders/${o.id}`);
+  await notify(db, o.buyer_id, `Dispute on ${o.number} closed`, d.resolution, `/account/orders/${o.id}`);
+  await notify(db, o.owner_id, `Dispute on ${o.number} closed`, d.resolution, `/seller/orders/${o.id}`);
   return "Dispute closed.";
 });
 
@@ -177,7 +178,7 @@ export const saveUniversity = admin(z.object({
 export const saveCampaign = admin(z.object({
   title: text(3, 80, "Title"), body: optional(160), href: optional(200), days: z.coerce.number().int().min(1).max(365), is_sponsored: z.string().optional(),
 }), "campaign.create", async (d, db) => {
-  if (d.href && !d.href.startsWith("/")) throw new ActionError("Links must start with / and stay on Campora.");
+  if (d.href && !d.href.startsWith("/")) throw new ActionError("Links must start with / and stay on Vybe Market.");
   await db.run("insert into promotional_campaigns(title,body,href,is_sponsored,ends_at) values ($1,$2,$3,$4, now()+make_interval(days=>$5))", [d.title, d.body, d.href, d.is_sponsored === "on", d.days]);
   return "Campaign published.";
 });
