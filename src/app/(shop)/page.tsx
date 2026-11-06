@@ -1,6 +1,7 @@
 import { BookOpen, Camera, Code, Footprints, Laptop, MapPin, PenTool, Scissors, Shirt, Sparkles, Tag, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { CardGrid, ListingCard } from "@/components/listing-card";
+import { PublicLive } from "@/components/live-stats";
 import { Float, Reveal, WordsIn } from "@/components/motion";
 import { Img, LinkButton, Price } from "@/components/ui";
 import { currentUser } from "@/lib/auth";
@@ -59,6 +60,7 @@ export default async function Home() {
               <input name="q" aria-label="Search products, services and businesses" placeholder="What do you need?" className="h-14 w-full rounded-2xl border border-line bg-card px-4 text-ink outline-none transition focus:border-palm focus:ring-4 focus:ring-palm/40" />
               <button className="shine h-14 shrink-0 rounded-2xl bg-palm px-6 font-semibold transition hover:bg-palm-hover active:scale-95">Search</button>
             </form>
+            <PublicLive className="mt-5 text-white/80" />
           </div>
           <div className="relative hidden min-h-[470px] md:block">
             {d.tags.length > 0 ? d.tags.map((l, i) => (

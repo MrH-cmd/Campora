@@ -418,6 +418,13 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     expect((await guest.request.post(`${BASE}/api/presence`, { data: { id: "nope" } })).status() === 400, "bad id");
     expect(sql("select count(*) from presence where last_seen_at < now() - interval '3 minutes'") === "0", "fresh");
   });
+  await step("everyone can see online and registered totals, with no private detail", async () => {
+    const g = await page(); await g.bringToFront(); await g.goto(BASE); await g.waitForTimeout(1500);
+    expect((await g.getByTestId("public-registered").first().innerText()) === sql("select count(*) from users where deleted_at is null"), "registered");
+    expect(Number(await g.getByTestId("public-online").first().innerText()) >= 1, "online");
+    await g.goto(`${BASE}/pricing`); await g.getByText("registered users").first().waitFor();
+    expect(Object.keys(await (await g.request.get(`${BASE}/api/live`)).json()).sort().join() === "online,registered", "fields");
+  });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 
   await browser.close(); app.kill(); gw.kill();

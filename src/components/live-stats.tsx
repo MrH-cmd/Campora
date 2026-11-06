@@ -41,3 +41,23 @@ export function LiveStats({ initial }: { initial: C }) {
     </div>
   );
 }
+
+export function PublicLive({ className = "" }: { className?: string }) {
+  const [c, set] = useState<{ online: number; registered: number } | null>(null);
+  useEffect(() => {
+    const load = async () => {
+      if (document.hidden) return;
+      const r = await fetch("/api/live").catch(() => null);
+      if (r?.ok) set(await r.json());
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <p className={`flex flex-wrap items-center gap-x-5 gap-y-1 text-sm ${className}`} aria-live="off">
+      <span className="flex items-center gap-2"><span className="pulse-dot size-2.5 rounded-full bg-[#4ade80]" aria-hidden /><b className="tabular-nums" data-testid="public-online">{c?.online.toLocaleString("en-NG") ?? "-"}</b> online now</span>
+      <span><b className="tabular-nums" data-testid="public-registered">{c?.registered.toLocaleString("en-NG") ?? "-"}</b> registered users</span>
+    </p>
+  );
+}
