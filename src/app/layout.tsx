@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { PresencePing } from "@/components/live-stats";
 import { MotionRoot } from "@/components/motion";
 import { Toaster } from "@/components/toast";
 import "./globals.css";
@@ -12,7 +13,7 @@ export const viewport: Viewport = { themeColor: "#070509", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-dvh"><MotionRoot>{children}</MotionRoot><Toaster /></body>
+      <body className="min-h-dvh"><MotionRoot>{children}</MotionRoot><Toaster /><PresencePing /></body>
     </html>
   );
 }

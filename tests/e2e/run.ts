@@ -407,6 +407,17 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await admin.bringToFront(); await admin.goto(`${BASE}/admin/listings?status=active`); await admin.locator('tr:has-text("Instant Listing") button:has-text("Remove")').click(); await admin.click('button:has-text("Yes, continue")'); await toast(admin, "Listing removed");
     await anon.goto(`${BASE}/search?q=Instant`); expect(await anon.getByText("Instant Listing").count() === 0, "still public");
   });
+  await step("admin sees people online and total registered users; others can't read the counts", async () => {
+    sql("delete from presence");
+    const guest = await page(); await guest.bringToFront(); await guest.goto(`${BASE}/pricing`); await guest.waitForTimeout(1200);
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin`); await admin.waitForTimeout(1500); await admin.reload(); await admin.waitForTimeout(800);
+    const online = Number(await admin.getByTestId("online").innerText()); expect(online >= 2, "online " + online);
+    const reg = await admin.getByTestId("registered").innerText(); expect(reg === sql("select count(*) from users where deleted_at is null"), "registered " + reg);
+    expect((await guest.request.get(`${BASE}/api/admin/live`)).status() === 403, "guest live");
+    expect((await buyer.request.get(`${BASE}/api/admin/live`)).status() === 403, "buyer live");
+    expect((await guest.request.post(`${BASE}/api/presence`, { data: { id: "nope" } })).status() === 400, "bad id");
+    expect(sql("select count(*) from presence where last_seen_at < now() - interval '3 minutes'") === "0", "fresh");
+  });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 
   await browser.close(); app.kill(); gw.kill();

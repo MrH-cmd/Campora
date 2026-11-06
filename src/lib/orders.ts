@@ -209,6 +209,7 @@ export async function runSweep() {
          from listings l join storefronts s on s.id=l.storefront_id where l.status in ('active','pending_review'))
        update listings set status='inactive' where id in (select id from c where rn > lim) returning id`);
     await expireLots(db);
+    await db.run("delete from presence where last_seen_at < now() - interval '1 day'");
     await db.run(
       `update referrals r set status='expired' where status='pending_purchase' and registered_at < now() - interval '180 days'`);
     const sellers = await db.rows(`select seller_id from subscriptions where status='active'`);

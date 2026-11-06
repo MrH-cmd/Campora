@@ -1,7 +1,9 @@
 import { CountBars, SalesChart } from "@/components/charts";
+import { LiveStats } from "@/components/live-stats";
 import { Card, PageHead, Stat } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
-import { asUser } from "@/lib/db";
+import { asSystem, asUser } from "@/lib/db";
+import { liveCounts } from "@/lib/live";
 import { naira, timeAgo } from "@/lib/format";
 
 export const metadata = { title: "Admin" };
@@ -26,12 +28,14 @@ export default async function AdminHome() {
        left join transactions t on t.status='success' and t.created_at::date=d group by d order by d`),
     logs: await db.rows("select l.*, u.full_name from admin_activity_logs l join users u on u.id=l.admin_id order by l.created_at desc limit 8"),
   }));
+  const live = await asSystem(liveCounts);
   const revenue = Number(d.s.commission) + Number(d.s.fees);
   return (
     <>
       <PageHead title="Overview" sub="Verified payments only. Sample data has no transactions." />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <Stat label="Registered users" value={d.s.users} /><Stat label="Buyers" value={d.s.buyers} /><Stat label="Sellers" value={d.s.sellers} />
+      <LiveStats initial={live} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <Stat label="Buyers" value={d.s.buyers} /><Stat label="Sellers" value={d.s.sellers} />
         <Stat label="Transactions" value={d.s.txns} /><Stat label="Platform revenue" value={naira(revenue)} hint="Commission, plans and boosts" />
         <Stat label="Active storefronts" value={d.s.stores} /><Stat label="Active listings" value={d.s.listings} /><Stat label="Listings in review" value={d.s.review} /><Stat label="Open reports" value={d.s.reports} />
       </div>
