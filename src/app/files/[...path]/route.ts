@@ -13,6 +13,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ path: s
     headers: {
       "Content-Type": f.content_type,
       "Cache-Control": f.is_private ? "private, no-store" : "public, max-age=604800, immutable",
+      "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
     },
   });

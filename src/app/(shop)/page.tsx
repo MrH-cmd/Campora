@@ -25,7 +25,7 @@ export default async function Home() {
            (select count(*)::int from listings l where l.storefront_id=s.id and l.status='active') items,
            (select coalesce(sum(i.quantity),0)::int from order_items i join orders o on o.id=i.order_id where o.storefront_id=s.id and o.created_at > now()-interval '30 days') recent
          from storefronts s left join storefront_ratings r on r.storefront_id=s.id
-         where s.status='active' and ($1::uuid is null or s.university_id=$1) order by recent desc, rating desc limit 4`, [uni]),
+         where s.status='active' and ($1::uuid is null or s.university_id=$1) order by s.is_featured desc, recent desc, rating desc limit 4`, [uni]),
       await db.rows(
         `select * from promotional_campaigns where is_active and now() between starts_at and ends_at and storefront_id is null order by created_at desc limit 2`),
       await db.rows(

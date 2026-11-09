@@ -38,17 +38,14 @@ export const saveStorefront = action(z.object({
   contact_phone: optional(20), contact_whatsapp: optional(20), contact_email: optional(120), campus_location: optional(120),
   accent: hex, layout: z.enum(["grid", "editorial"]).optional(), announcement: optional(160),
 }), async (d, form) => {
-  const { user, store, plan } = await sellerContext();
+  const { user, store } = await sellerContext();
   if (user.status !== "active") throw new ActionError("Your account is restricted, so selling is paused.");
   if (!user.university_id) throw new ActionError("Choose your university on your account page first.");
   const logo = form.get("logo") as File | null;
   const cover = form.get("cover") as File | null;
   const logoPath = logo?.size ? await saveImage(logo, "logos", user.id) : null;
   const coverPath = cover?.size ? await saveImage(cover, "covers", user.id) : null;
-  // Plan features are decided here on the server, whatever the form sent.
-  const accent = plan.customization_level >= 1 && d.accent ? d.accent : store?.accent ?? "#7C3AED";
-  const announcement = plan.customization_level >= 1 ? d.announcement : store?.announcement ?? null;
-  const layout = plan.customization_level >= 2 && d.layout ? d.layout : store?.layout ?? "grid";
+  // Colours, layout and the announcement now live in the storefront builder, so this form leaves them alone.
   await asUser(user.id, async (db) => {
     if (!store) {
       const slug = `${slugify(d.name)}-${randomBytes(2).toString("hex")}`;
@@ -59,8 +56,8 @@ export const saveStorefront = action(z.object({
     }
     await db.run(
       `update storefronts set name=$2,tagline=$3,description=$4,contact_phone=$5,contact_whatsapp=$6,contact_email=$7,campus_location=$8,
-         accent=$9,layout=$10,announcement=$11,logo_path=coalesce($12,logo_path),cover_path=coalesce($13,cover_path) where owner_id=$1`,
-      [user.id, d.name, d.tagline, d.description, d.contact_phone, d.contact_whatsapp, d.contact_email, d.campus_location, accent, layout, announcement, logoPath, coverPath]);
+         logo_path=coalesce($9,logo_path),cover_path=coalesce($10,cover_path) where owner_id=$1`,
+      [user.id, d.name, d.tagline, d.description, d.contact_phone, d.contact_whatsapp, d.contact_email, d.campus_location, logoPath, coverPath]);
   });
   revalidatePath("/seller");
   return "Storefront saved.";

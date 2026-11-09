@@ -317,7 +317,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await p.fill("[name=email]", "bowl@campora.test"); await p.fill("[name=password]", PW); await p.click('button:has-text("Log in")'); await p.waitForTimeout(1500); expect(p.url().startsWith(BASE), p.url());
   });
   await step("every link on every buyer, seller and admin page works", async () => {
-    for (const [p, starts] of [[anon, ["/", "/pricing", "/search"]], [buyer, ["/", "/account", "/account/orders", "/account/rewards", "/messages", "/notifications", "/cart"]], [newbie, ["/seller", "/seller/orders", "/seller/listings", "/seller/storefront", "/seller/analytics", "/seller/promotions", "/seller/boosts", "/seller/earnings", "/seller/billing", "/seller/pickup", "/seller/services"]], [admin, ["/admin", "/admin/users", "/admin/verifications", "/admin/sellers", "/admin/listings", "/admin/categories", "/admin/reports", "/admin/disputes", "/admin/finance", "/admin/settings", "/admin/logs", "/admin/discounts", "/admin/referrals", "/admin/earnings"]]] as [Page, string[]][]) {
+    for (const [p, starts] of [[anon, ["/", "/pricing", "/search"]], [buyer, ["/", "/account", "/account/orders", "/account/rewards", "/messages", "/notifications", "/cart"]], [newbie, ["/seller", "/seller/orders", "/seller/listings", "/seller/storefront", "/seller/analytics", "/seller/promotions", "/seller/boosts", "/seller/earnings", "/seller/billing", "/seller/pickup", "/seller/services", "/seller/storefront/designs", "/seller/storefront/editor", "/seller/storefront/media", "/seller/storefront/analytics"]], [admin, ["/admin", "/admin/users", "/admin/verifications", "/admin/sellers", "/admin/listings", "/admin/categories", "/admin/reports", "/admin/disputes", "/admin/finance", "/admin/settings", "/admin/logs", "/admin/discounts", "/admin/referrals", "/admin/earnings", "/admin/storefronts", "/admin/storefronts/media", "/admin/templates"]]] as [Page, string[]][]) {
       const seen = new Set<string>();
       for (const s of starts) {
         await p.goto(BASE + s); await p.waitForTimeout(250);
@@ -352,7 +352,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     const p = await page(); await p.goto(`${BASE}/register?ref=${code}`);
     await p.fill("[name=full_name]", "Friend One"); await p.fill("[name=email]", "friend@example.com"); await p.fill("[name=password]", PW); await p.click('button:has-text("Create account")'); await p.waitForURL("**/account**");
     expect(sql("select status from referrals limit 1") === "pending_purchase", "referral saved");
-    await p.goto(`${BASE}/admin/referrals`); await p.waitForURL((u) => !u.pathname.startsWith("/admin"));
+    expect((await p.request.get(`${BASE}/admin/referrals`)).status() === 403, "non-admin should get 403");
     await admin.goto(`${BASE}/admin/referrals`); await admin.getByText("Friend One").waitFor();
   });
   await step("seller adds pickup points; service booking gets live tracking", async () => {
@@ -424,6 +424,82 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     expect(Number(await g.getByTestId("public-online").first().innerText()) >= 1, "online");
     await g.goto(`${BASE}/pricing`); await g.getByText("registered users").first().waitFor();
     expect(Object.keys(await (await g.request.get(`${BASE}/api/live`)).json()).sort().join() === "online,registered", "fields");
+  });
+
+  const chidi = () => sql("select slug from storefronts where name='Chidi Prints'");
+  const tpl = sql("select slug from storefront_templates where min_plan_code='no-dulling' order by sort limit 1");
+  await step("storefront builder: seller picks a design, adds an effect and publishes; buyers only see it after publishing", async () => {
+    await newbie.bringToFront(); await newbie.goto(`${BASE}/seller/storefront/designs`); await newbie.waitForTimeout(600);
+    const open = await newbie.locator("article[data-template]:not([data-locked])").count(); const all = await newbie.locator("article[data-template]").count();
+    expect(open === 20 && all === 50, `No Dulling sees ${open} of ${all}`);
+    await newbie.locator('article[data-locked] a:has-text("Unlock with Odogwu")').first().waitFor();
+    await newbie.locator(`article[data-template="${tpl}"] button:has-text("Select")`).click(); await newbie.click('button:has-text("Yes, continue")'); await toast(newbie, "applied to your draft");
+    await anon.goto(`${BASE}/store/${chidi()}`); expect(await anon.locator(`.sf[data-template="${tpl}"]`).count() === 0, "draft leaked to public page");
+    await newbie.goto(`${BASE}/seller/storefront/editor`); await newbie.waitForTimeout(800);
+    await newbie.click('button:has-text("Effects")'); await newbie.locator('[data-effect="rain"] button:has-text("Add")').click(); await toast(newbie, "Rain added");
+    await newbie.locator('[data-effect="orbit-crystal"] a:has-text("Odogwu")').waitFor();
+    await newbie.getByLabel("Undo").click(); expect(await newbie.locator('[data-editor] .sf-fx[data-fx="rain"]').count() === 0, "undo"); await newbie.getByLabel("Redo").click();
+    newbie.once("dialog", (d) => d.accept()); await newbie.click('button:has-text("Publish")'); await toast(newbie, "Published");
+    await anon.goto(`${BASE}/store/${chidi()}`); await anon.locator(`.sf[data-template="${tpl}"]`).waitFor();
+    await anon.locator('.sf-fx[data-fx="rain"]').first().waitFor({ state: "attached" });
+    await anon.getByText("Department Shirt").first().waitFor(); await anon.screenshot({ path: `${OUT}/store-builder.png`, fullPage: true });
+    await newbie.screenshot({ path: `${OUT}/editor.png` });
+  });
+  await step("buyer orders from the store page with a discount code and reward credit; commission is on the full price", async () => {
+    sql("delete from cart_items; insert into discount_campaigns(name,code,discount_type,discount_value,status,per_user_limit) values ('Store test','STORE5','fixed',50000,'active',1)");
+    sql("insert into wallet_lots(user_id,amount_kobo,remaining_kobo,expires_at) select id,30000,30000,now()+interval '30 days' from users where email='buyer@campora.test'");
+    await buyer.bringToFront(); await buyer.goto(`${BASE}/store/${chidi()}`); await buyer.waitForTimeout(800);
+    await buyer.locator('[data-item]:has-text("Department Shirt") button:has-text("Add to cart")').first().click(); await toast(buyer, "Added to cart");
+    await buyer.goto(`${BASE}/checkout`); await buyer.waitForTimeout(800);
+    await buyer.fill("[name=coupon]", "STORE5"); await buyer.click('button:has-text("Apply")'); await buyer.getByText("Code applied").waitFor();
+    await buyer.check("[name=use_credit]"); await buyer.waitForTimeout(800);
+    await buyer.click('button:has-text("Place order")'); await buyer.getByText("Payment confirmed").first().waitFor({ timeout: 15000 });
+    const id = sql("select id from orders order by created_at desc limit 1");
+    expect(sql(`select subtotal_kobo||'/'||campaign_discount_kobo||'/'||wallet_credit_kobo||'/'||total_kobo from orders where id='${id}'`) === "500000/50000/30000/420000", "order money " + sql(`select subtotal_kobo||'/'||campaign_discount_kobo||'/'||wallet_credit_kobo||'/'||total_kobo from orders where id='${id}'`));
+    await newbie.bringToFront(); await newbie.goto(`${BASE}/seller/orders/${id}`); await newbie.waitForTimeout(800);
+    await newbie.click('button:has-text("Accept order")'); await newbie.getByText("Start processing").waitFor();
+    await newbie.click('button:has-text("Mark ready for pickup")'); await newbie.getByText("pickup code").first().waitFor();
+    await newbie.fill("[name=code]", sql(`select pickup_code from orders where id='${id}'`)); await newbie.click('button:has-text("Complete order")'); await newbie.getByText("This order is closed").waitFor();
+    expect(sql(`select commission_kobo||'/'||net_kobo from commissions where order_id='${id}'`) === "25000/475000", "platform-funded discount and credit must not cut seller earnings");
+  });
+  await step("store analytics count real visits and product clicks", async () => {
+    sql("delete from storefront_daily_stats; delete from storefront_visitor_days");
+    const v = await page(); await v.goto(`${BASE}/store/${chidi()}`); await v.waitForTimeout(1200);
+    await v.locator('[data-item]:has-text("Department Shirt") a').first().click(); await v.waitForURL("**/listing/**"); await v.waitForTimeout(800);
+    expect(sql("select visits||'/'||unique_visitors||'/'||product_clicks from storefront_daily_stats") === "1/1/1", "stats " + sql("select visits||'/'||unique_visitors||'/'||product_clicks from storefront_daily_stats"));
+    await newbie.bringToFront(); await newbie.goto(`${BASE}/seller/storefront/analytics`); await newbie.getByText("Store visits").waitFor();
+    expect(sql("select count(*) from storefront_visitor_days where visitor_hash !~ '^[0-9a-f]{64}$'") === "0", "raw ids stored");
+  });
+  await step("store page, gallery and editor fit a 390px phone; reduced motion shows no animation", async () => {
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }); const p = await c.newPage();
+    await p.goto(`${BASE}/login`); await p.fill("[name=email]", email); await p.fill("[name=password]", PW); await p.click('button:has-text("Log in")'); await p.waitForURL(BASE + "/");
+    for (const path of [`/store/${chidi()}`, "/seller/storefront", "/seller/storefront/designs", "/seller/storefront/editor", "/seller/storefront/media", "/seller/storefront/analytics"]) {
+      await p.goto(BASE + path); await p.waitForTimeout(500);
+      const over = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(over <= 0, `${path} overflows by ${over}px`);
+    }
+    await p.goto(`${BASE}/seller/storefront/editor`); await p.getByRole("tab", { name: "Preview" }).click(); await p.waitForTimeout(500); await p.screenshot({ path: `${OUT}/m-editor.png` });
+    const r = await browser.newContext({ viewport: { width: 1280, height: 860 }, reducedMotion: "reduce" }); const q = await r.newPage();
+    await q.goto(`${BASE}/store/${chidi()}`); await q.waitForTimeout(1500);
+    expect(await q.locator(".sf-fx, .sf-fxwrap").count() === 0, "effects ran with reduced motion");
+    expect(await q.locator("video[autoplay]").count() === 0, "video autoplayed with reduced motion");
+    await c.close(); await r.close();
+  });
+  await step("admin features and hides stores and edits templates; non-admins get 403", async () => {
+    expect((await buyer.request.get(`${BASE}/admin/storefronts`)).status() === 403, "buyer admin page");
+    expect((await newbie.request.get(`${BASE}/admin/templates`)).status() === 403, "seller admin page");
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin/storefronts?q=Chidi`); await admin.waitForTimeout(600);
+    await admin.click('button:has-text("Feature")'); await toast(admin, "featured on the home page");
+    expect(sql("select is_featured from storefronts where name='Chidi Prints'") === "t", "featured");
+    const statusForm = admin.locator('form:has(button:has-text("Apply"))').first(); await statusForm.locator("select[name=status]").selectOption("hidden"); await admin.fill("[name=reason]", "Checking a report"); await admin.click('button:has-text("Apply")'); await toast(admin, "Storefront hidden");
+    expect((await (await anon.request.get(`${BASE}/store/${chidi()}`)).text()).includes("Page not found"), "hidden store still public");
+    await statusForm.locator("select[name=status]").selectOption("active"); await admin.click('button:has-text("Apply")'); await toast(admin, "live again");
+    await admin.goto(`${BASE}/admin/templates`); const d = admin.locator(`details:has(input[name=slug][value="${tpl}"])`);
+    await d.locator("summary").click(); await d.locator("select[name=min_plan_code]").selectOption("odogwu"); await d.locator('button:has-text("Save template")').click(); await toast(admin, "Template saved");
+    expect(sql(`select min_plan_code from storefront_templates where slug='${tpl}'`) === "odogwu", "plan changed");
+    expect(sql("select count(*) from admin_activity_logs where action in ('storefront.feature','storefront.status','template.save')") === "4", "audit");
+    await anon.goto(`${BASE}/store/${chidi()}`); expect(await anon.locator(`.sf[data-template="${tpl}"]`).count() === 0, "locked template should fall back");
+    await anon.locator(".sf[data-template]").first().waitFor();
   });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 

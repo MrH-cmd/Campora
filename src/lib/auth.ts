@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { cache } from "react";
 import { hashToken, newToken } from "./auth-core";
 import { asSystem, type Db } from "./db";
@@ -55,7 +55,7 @@ export async function requireSeller() {
 
 export async function requireAdmin() {
   const u = await requireUser("/admin");
-  if (u.role !== "admin") redirect("/");
+  if (u.role !== "admin") forbidden();
   return u;
 }
 

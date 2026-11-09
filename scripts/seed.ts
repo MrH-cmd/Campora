@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { Client } from "pg";
 import { hashPassword } from "../src/lib/auth-core";
+import { EFFECTS, TEMPLATES } from "../src/lib/storefront-catalog";
 
 // Sample data for development. Every sample row has is_sample = true, and sample art is generated here.
 const require = createRequire(import.meta.url);
@@ -69,7 +70,16 @@ async function main() {
   // ADMIN_EMAIL promotes an already-registered account, because nothing else can create the first admin.
   if (process.env.ADMIN_EMAIL) await db.query("update users set role='admin' where lower(email)=lower($1)", [process.env.ADMIN_EMAIL]);
   const already = await db.query("select 1 from universities limit 1");
-  if (already.rowCount) { console.log("Seed skipped: data already exists."); await db.end(); return; }
+  // The template and effect catalogue is topped up on every deploy. Existing rows are left alone, so admin edits survive.
+  for (const t of TEMPLATES) await db.query(
+    `insert into storefront_templates(slug,name,description,category,industry_tags,style_tags,archetype,config,min_plan_code,sort)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) on conflict (slug) do nothing`,
+    [t.slug, t.name, t.description, t.category, t.industry_tags, t.style_tags, t.archetype, JSON.stringify(t.config), t.min_plan_code, t.sort]);
+  for (const e of EFFECTS) await db.query(
+    `insert into animation_assets(slug,name,description,category,renderer,min_plan_code,params_schema,sort)
+     values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (slug) do nothing`,
+    [e.slug, e.name, e.description, e.category, e.renderer, e.min_plan_code, JSON.stringify(e.params_schema), e.sort]);
+  if (already.rowCount) { console.log("Seed skipped: data already exists. Storefront catalogue checked."); await db.end(); return; }
   await db.query("begin");
 
   const cu = await one(

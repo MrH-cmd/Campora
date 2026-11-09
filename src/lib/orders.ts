@@ -1,3 +1,5 @@
+import { pruneStats } from "./storefront-stats";
+import { syncAllDowngrades } from "./storefront";
 import { randomBytes, randomInt } from "node:crypto";
 import { ActionError, type SessionUser } from "./auth";
 import { asSystem, type Db } from "./db";
@@ -189,6 +191,11 @@ export async function changeOrderStatus(actor: SessionUser, orderId: string, nex
 
 /** Expired subscriptions, boosts and abandoned payments. Called by the daily cron route. */
 export async function runSweep() {
+  const result = await sweep();
+  // Runs after plans have expired, so sellers hear about design changes the same day.
+  return { ...result, designsOnFallback: await syncAllDowngrades() };
+}
+async function sweep() {
   const unpaid = await asSystem((db) => db.rows(
     "select id from transactions where status='initiated' and purpose='order' and created_at < now() - interval '1 hour'"));
   for (const t of unpaid) await cancelUnpaid(t.id);
@@ -217,6 +224,7 @@ export async function runSweep() {
       await grantMonthlyCredits(db, s.seller_id);
     }
     const deleted = await runDeletions(db);
+    await pruneStats(db);
     return { accountsDeleted: deleted, abandonedPayments: unpaid.length, boostsEnded: boosts, plansExpired: expired.length, listingsDeactivated: over.length };
   });
 }
