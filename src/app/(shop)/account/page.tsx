@@ -26,7 +26,7 @@ export default async function Account({ searchParams }: { searchParams: Promise<
             <li className="flex items-center justify-between gap-2"><span>Account</span><Badge tone={statusTone(u.status)}>{u.status}</Badge></li>
           </ul>
           {u.role === "customer" && <LinkButton href="/account/become-seller" className="mt-4" variant="dark" size="sm">Start selling</LinkButton>}
-          {u.role === "seller" && <LinkButton href="/seller" className="mt-4" variant="dark" size="sm">Seller dashboard</LinkButton>}
+          {(u.role === "seller" || u.role === "admin") && <LinkButton href="/seller" className="mt-4" variant="dark" size="sm">Seller dashboard</LinkButton>}
         </Card>
         <Card>
           <h2 className="text-lg font-bold">Profile</h2>

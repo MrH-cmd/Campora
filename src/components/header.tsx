@@ -138,7 +138,7 @@ function MenuItems({ role }: { role: string }) {
   return (
     <>
       {role === "admin" && <Link role="menuitem" className={cls} href="/admin"><Shield size={17} aria-hidden />Admin</Link>}
-      {role === "seller" ? <Link role="menuitem" className={cls} href="/seller"><Store size={17} aria-hidden />Seller dashboard</Link>
+      {role === "seller" || role === "admin" ? <Link role="menuitem" className={cls} href="/seller"><Store size={17} aria-hidden />Seller dashboard</Link>
         : role === "customer" && <Link role="menuitem" className={cls} href="/account/become-seller"><Store size={17} aria-hidden />Start selling</Link>}
       <Link role="menuitem" className={cls} href="/account"><User size={17} aria-hidden />Account</Link>
       <Link role="menuitem" className={cls} href="/account/orders"><Package size={17} aria-hidden />Orders</Link>

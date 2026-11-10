@@ -9,7 +9,7 @@ import { emailEnabled } from "@/lib/email";
 export const metadata = { title: "Start selling" };
 export default async function Become() {
   const u = await requireUser("/account/become-seller");
-  if (u.role === "seller") redirect("/seller");
+  if (u.role === "seller" || u.role === "admin") redirect("/seller");
   const app = await asUser(u.id, (db) => db.one("select * from seller_profiles where user_id=$1", [u.id]));
   const needEmail = emailEnabled() && !u.email_verified_at;
   const ready = !needEmail && u.student_status === "verified";

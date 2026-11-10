@@ -49,7 +49,8 @@ export async function requireUser(next?: string) {
 
 export async function requireSeller() {
   const u = await requireUser("/seller");
-  if (u.role === "seller") return u;
+  // Admins can use every seller tool too, on the top plan (see effective_plan).
+  if (u.role === "seller" || u.role === "admin") return u;
   redirect("/account/become-seller");
 }
 

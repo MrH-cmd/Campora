@@ -194,6 +194,7 @@ export const requestPayout = action(z.object({ amount: nairaAmount.refine((n) =>
 
 export const choosePlan = action(z.object({ plan_id: id, provider: z.string().optional() }), async (d) => {
   const { user, plan: current } = await sellerContext();
+  if (user.role === "admin") throw new ActionError("Admins already have every plan's features. There's nothing to pay for.");
   const target = await asUser(user.id, (db) => db.one("select * from subscription_plans where id=$1", [d.plan_id]));
   if (!target) throw new ActionError("Plan not found.");
   if (Number(target.price_kobo ?? 1) === 0) {

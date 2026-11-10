@@ -9,7 +9,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/auth", async (orig) => {
   const real = await orig<typeof import("@/lib/auth")>();
   const need = (role?: string) => { if (!as) throw new Error("NEXT_REDIRECT login"); if (role && as.role !== role) throw Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;403"), { digest: "NEXT_HTTP_ERROR_FALLBACK;403" }); return as; };
-  return { ...real, currentUser: async () => as, requireUser: async () => need(), requireSeller: async () => need("seller"), requireAdmin: async () => need("admin") };
+  return { ...real, currentUser: async () => as, requireUser: async () => need(), requireSeller: async () => { const u = need(); if (u.role !== "seller" && u.role !== "admin") throw new Error("NEXT_REDIRECT"); return u; }, requireAdmin: async () => need("admin") };
 });
 
 import { chooseTemplate, publishDesign, restoreDesign, saveDraft, startMediaUpload, uploadLottie } from "@/app/actions/storefront";
@@ -267,6 +267,28 @@ describe("admin", () => {
     expect(await asUser(null, (db) => db.one("select 1 from storefronts where id=$1", [store2.id]))).toBeNull();
     expect((await asSystem((db) => db.one("select action from admin_activity_logs order by created_at desc limit 1"))).action).toBe("storefront.status");
     await setStoreStatus({}, fd({ id: store2.id, status: "active" }));
+  });
+});
+
+describe("admins", () => {
+  it("get the top plan everywhere and can use every locked feature without paying", async () => {
+    const plan = await asSystem((db) => db.one("select code, listing_limit from effective_plan($1)", [admin.id]));
+    expect(plan.code).toBe("odogwu");
+    const c = await catalog(); const a = await asSystem((db) => accessFor(db, admin.id));
+    expect(c.templates.filter((t) => canUseTemplate(c, a, t)).length).toBe(50);
+    await asSystem((db) => db.run(
+      "insert into storefronts(owner_id,university_id,slug,name) select $1, university_id, 'admin-store', 'Admin Store' from storefronts where id=$2 on conflict do nothing", [admin.id, store.id]));
+    as = { ...admin, university_id: store.university_id };
+    expect((await chooseTemplate({}, fd({ slug: TEMPLATES.find((t) => t.min_plan_code === "odogwu")!.slug }))).ok).toBe(true);
+    const d = (await asSystem((db) => db.one("select draft from storefront_designs d join storefronts s on s.id=d.storefront_id where s.owner_id=$1", [admin.id]))).draft as Design;
+    const full = { ...d, typeScale: 1.2, hero: { ...d.hero, parallax: true }, effects: [layer("orbit-crystal"), layer("speed-lines"), layer("rain"), layer("aurora"), layer("lightning"), layer("starfield")] };
+    expect((await publishDesign({}, fd({ design: JSON.stringify(full) }))).ok).toBe(true);
+    const { choosePlan } = await import("@/app/actions/seller");
+    const odogwu = await asSystem((db) => db.one("select id from subscription_plans where code='odogwu'"));
+    expect((await choosePlan({}, fd({ plan_id: odogwu.id }))).error).toMatch(/Admins already have/);
+  });
+  it("leave ordinary sellers on their own plan", async () => {
+    expect((await asSystem((db) => db.one("select code from effective_plan($1)", [seller.id]))).code).toBe("k-leg");
   });
 });
 

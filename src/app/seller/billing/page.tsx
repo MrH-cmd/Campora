@@ -16,7 +16,7 @@ export default async function Billing() {
   const online = configuredProviders();
   return (
     <>
-      <PageHead title="Plan and billing" sub={`You're on ${plan.name}${d.sub?.expires_at ? `, active until ${shortDate(d.sub.expires_at)}` : ""}`} />
+      <PageHead title="Plan and billing" sub={user.role === "admin" ? `As an admin you have every ${plan.name} feature unlocked, free and with no expiry.` : `You're on ${plan.name}${d.sub?.expires_at ? `, active until ${shortDate(d.sub.expires_at)}` : ""}`} />
       {d.sub?.next_plan_id && <Card className="mb-4 flex items-center justify-between gap-3"><p>You'll move to {d.sub.next_name} on {shortDate(d.sub.expires_at)}.</p><ActionButton action={cancelDowngrade}>Keep my plan</ActionButton></Card>}
       <div className="grid gap-3 md:grid-cols-3">
         {d.plans.map((p) => {
@@ -28,7 +28,8 @@ export default async function Billing() {
               <p className="display mt-1 text-2xl font-bold">{p.price_kobo == null ? "Price coming soon" : `${naira(p.price_kobo)}/mo`}</p>
               <p className="mt-1 text-sm text-mute">{p.listing_limit} listings, {p.photo_limit} photos each{p.monthly_boost_credits ? `, ${p.monthly_boost_credits} Boost credits a month` : ""}</p>
               <div className="mt-3">
-                {p.price_kobo == null ? <p className="text-sm text-mute">Not on sale yet.</p>
+                {user.role === "admin" ? <p className="text-sm text-mute">Included for admins.</p>
+                  : p.price_kobo == null ? <p className="text-sm text-mute">Not on sale yet.</p>
                   : free ? (!current && <ActionButton action={choosePlan} values={{ plan_id: p.id }} confirm="Move to the free plan when your current plan ends?">Switch to {p.name}</ActionButton>)
                   : online.length === 0 ? <p className="text-sm text-mute">Online payment isn't switched on yet.</p> : (
                     <Form action={choosePlan} className="space-y-2">
