@@ -1,5 +1,5 @@
 import { pruneStats } from "./storefront-stats";
-import { syncAllDowngrades } from "./storefront";
+import { syncAllDowngrades, syncStoreLimits } from "./storefront";
 import { randomBytes, randomInt } from "node:crypto";
 import { ActionError, type SessionUser } from "./auth";
 import { asSystem, type Db } from "./db";
@@ -193,7 +193,7 @@ export async function changeOrderStatus(actor: SessionUser, orderId: string, nex
 export async function runSweep() {
   const result = await sweep();
   // Runs after plans have expired, so sellers hear about design changes the same day.
-  return { ...result, designsOnFallback: await syncAllDowngrades() };
+  return { ...result, designsOnFallback: await syncAllDowngrades(), storesPaused: await syncStoreLimits() };
 }
 async function sweep() {
   const unpaid = await asSystem((db) => db.rows(

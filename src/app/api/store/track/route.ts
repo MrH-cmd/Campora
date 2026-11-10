@@ -2,9 +2,12 @@ import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { currentUser, rateLimit } from "@/lib/auth";
-import { recordClick, recordVisit } from "@/lib/storefront-stats";
+import { recordClick, recordVisit, sourceOf } from "@/lib/storefront-stats";
 
-const body = z.object({ storefront_id: z.string().uuid(), type: z.enum(["visit", "click"]) });
+const body = z.object({
+  storefront_id: z.string().uuid(), type: z.enum(["visit", "click"]),
+  ref: z.string().max(253).regex(/^[a-z0-9.-]*$/i).optional(), device: z.enum(["mobile", "desktop"]).optional(),
+});
 const COOKIE = "vybe_vid";
 
 /** Store analytics beacon. The visitor id lives in a first-party cookie and is only stored as a daily hash. */
@@ -19,7 +22,10 @@ export async function POST(req: Request) {
   }
   try { await rateLimit(`track:${vid}`, 300, 3600); } catch { return new Response(null, { status: 204 }); }
   const u = await currentUser();
-  if (p.data.type === "visit") await recordVisit(p.data.storefront_id, vid, u?.id ?? null);
+  if (p.data.type === "visit") {
+    const own = (() => { try { return new URL(process.env.APP_URL ?? "").hostname; } catch { return null; } })();
+    await recordVisit(p.data.storefront_id, vid, u?.id ?? null, { source: sourceOf(p.data.ref, own), device: p.data.device ?? "desktop" });
+  }
   else await recordClick(p.data.storefront_id, vid, u?.id ?? null);
   return new Response(null, { status: 204 });
 }

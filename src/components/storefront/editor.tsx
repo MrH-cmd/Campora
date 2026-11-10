@@ -6,22 +6,26 @@ import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } f
 import { publishDesign, saveDraft } from "@/app/actions/storefront";
 import { toast } from "@/components/toast";
 import {
-  ANCHORS, BUTTONS, EFFECT_CATEGORIES, FONTS, FONT_IDS, PALETTES, SECTION_LABEL, contrast, layer,
-  type Anchor, type Design, type EffectLayer, type FontId, type Template,
+  ANCHORS, BACKGROUNDS, BACKGROUND_LABEL, BUTTONS, CARDS, EFFECT_CATEGORIES, FONTS, FONT_IDS, HEROES, HERO_LABEL, NAV_LABEL, NAV_STYLES, PALETTES,
+  PRODUCT_LAYOUTS, PRODUCT_LAYOUT_LABEL, SECTION_LABEL, TRANSITIONS, TRANSITION_LABEL, contrast, layer,
+  type Anchor, type Design, type EffectLayer, type FontId, type SectionId, type Template,
 } from "@/lib/storefront-catalog";
-import type { MediaItem } from "@/lib/storefront-access";
+import { featurePlan, limits, planName, violations, type Access, type Catalog, type FeatureKey, type MediaItem } from "@/lib/storefront-access";
 import type { StoreContent } from "@/lib/storefront";
 import { EffectLayers, type FxAssets } from "./effects";
 import { StorefrontView } from "./view";
 
 export type EditorAsset = { slug: string; name: string; description: string; category: string; renderer: string; params_schema: { color?: boolean; direction?: boolean; density?: boolean }; locked: boolean; needName: string };
-type Limits = { layers: number; animatedBanner: boolean; typeControls: boolean; lottie: boolean; parallax: boolean };
 type Props = {
-  initial: Design; published: Design | null; templates: Template[]; assets: EditorAsset[]; fx: FxAssets; media: MediaItem[]; content: StoreContent;
-  limits: Limits; planName: string; nextPlan: Record<string, string>;
+  initial: Design; published: Design | null; assets: EditorAsset[]; fx: FxAssets; media: MediaItem[]; content: StoreContent;
+  /** The same plan data the server checks against, so the editor's warnings match what publishing allows. */
+  access: Access; catalog: Catalog;
 };
-type Tab = "template" | "branding" | "colours" | "type" | "banner" | "effects" | "sections" | "products";
-const TABS: [Tab, string][] = [["template", "Template"], ["branding", "Branding"], ["colours", "Colours"], ["type", "Typography"], ["banner", "Banner and media"], ["effects", "Effects"], ["sections", "Sections"], ["products", "Product display"]];
+type Tab = "template" | "branding" | "colours" | "type" | "layout" | "banner" | "effects" | "sections" | "products";
+const TABS: [Tab, string][] = [["template", "Template"], ["branding", "Branding"], ["colours", "Colours"], ["type", "Typography"], ["layout", "Layout and motion"], ["banner", "Banner and media"], ["effects", "Effects"], ["sections", "Sections"], ["products", "Product display"]];
+const BG_FEATURE: Record<string, FeatureKey | null> = { none: null, gradient: null, dots: "bg_more", grid: "bg_more", grain: "bg_more", mesh: "bg_premium", spotlight: "bg_premium" };
+const TR_FEATURE: Record<string, FeatureKey | null> = { none: null, fade: null, rise: "transition_rise", cinema: "transition_cinema" };
+const LAYOUT_FEATURE: Record<string, FeatureKey | null> = { grid: null, list: "layout_list", carousel: "layout_showcase", spotlight: "layout_showcase" };
 const WIDTHS = { desktop: 1200, tablet: 820, mobile: 390 } as const;
 const COLOR_LABEL: Record<keyof Design["colors"], string> = { bg: "Background", surface: "Cards and panels", text: "Text", muted: "Secondary text", accent: "Accent (buttons)", accentText: "Text on accent" };
 
@@ -42,13 +46,19 @@ function Range({ label, value, min, max, step, onChange, suffix = "", disabled }
 function Locked({ need }: { need: string }) {
   return <Link href="/seller/billing" className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold"><Lock size={11} aria-hidden />{need}</Link>;
 }
-function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
+function Seg<T extends string>({ value, options, onChange, label, locked }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; locked?: (v: T) => string | null }) {
   return (
     <div role="radiogroup" aria-label={label} className="mt-1 flex flex-wrap gap-1">
-      {options.map(([v, l]) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}
-          className={`rounded-lg border px-2.5 py-1 text-sm ${value === v ? "border-palm bg-mint text-ink" : "border-line text-ink-3 hover:border-palm"}`}>{l}</button>
-      ))}
+      {options.map(([v, l]) => {
+        const need = locked?.(v) ?? null;
+        return (
+          <button key={v} type="button" role="radio" aria-checked={value === v} aria-disabled={!!need || undefined} title={need ? `Needs ${need}` : undefined}
+            onClick={() => (need ? toast(`${l} needs the ${need} plan.`, "error") : onChange(v))}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm ${value === v ? "border-palm bg-mint text-ink" : "border-line text-ink-3 hover:border-palm"} ${need ? "opacity-55" : ""}`}>
+            {need && <Lock size={11} aria-hidden />}{l}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -58,8 +68,8 @@ function EffectPreview({ a, fxAssets }: { a: EditorAsset; fxAssets: FxAssets }) 
   return (
     <div className="relative h-16 overflow-hidden rounded-lg bg-gradient-to-br from-[#1a1228] to-[#070509]"
       onMouseEnter={() => set(true)} onMouseLeave={() => set(false)} onFocus={() => set(true)} onBlur={() => set(false)} onTouchStart={() => set(true)}>
-      {on && a.renderer !== "lottie" && <EffectLayers zone="back" assets={fxAssets} lottie={{}} accent="#a78bfa" layers={[{ l: layer(a.slug, { id: `p${a.slug.replace(/[^a-z0-9]/g, "").slice(0, 10)}`, opacity: .9 }), index: 0 }]} />}
-      {!on && <span className="absolute inset-0 grid place-items-center text-xs text-mute">{a.renderer === "lottie" ? "Your file" : "Hover or tap to play"}</span>}
+      {on && a.renderer !== "lottie" && a.renderer !== "rive" && <EffectLayers zone="back" assets={fxAssets} lottie={{}} accent="#a78bfa" layers={[{ l: layer(a.slug, { id: `p${a.slug.replace(/[^a-z0-9]/g, "").slice(0, 10)}`, opacity: .9 }), index: 0 }]} />}
+      {!on && <span className="absolute inset-0 grid place-items-center text-xs text-mute">{a.renderer === "lottie" || a.renderer === "rive" ? "Your file" : "Hover or tap to play"}</span>}
     </div>
   );
 }
@@ -99,11 +109,15 @@ export function Editor(p: Props) {
     addEventListener("beforeunload", warn); return () => removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const template = p.templates.find((t) => t.slug === d.template) ?? p.templates[0];
+  const c = p.catalog; const lim = limits(p.access);
+  const F = (k: FeatureKey) => p.access.features[k];
+  const need = (k: FeatureKey | null) => (k && !F(k) ? planName(c, featurePlan(c, k)) : null);
+  const template = c.templates.find((t) => t.slug === d.template) ?? c.templates[0];
   const selected = d.effects.find((e) => e.id === sel) ?? null;
   const assetBy = useMemo(() => Object.fromEntries(p.assets.map((a) => [a.slug, a])), [p.assets]);
-  const banners = p.media.filter((m) => m.kind !== "lottie" && m.status === "active");
+  const banners = p.media.filter((m) => m.kind !== "lottie" && m.kind !== "rive" && m.status === "active");
   const lotties = p.media.filter((m) => m.kind === "lottie" && m.status === "active");
+  const rives = p.media.filter((m) => m.kind === "rive" && m.status === "active");
 
   const warnings = useMemo(() => {
     const c = d.colors; const out: string[] = [];
@@ -111,18 +125,7 @@ export function Editor(p: Props) {
     chk(c.text, c.bg, "Text on background"); chk(c.text, c.surface, "Text on cards"); chk(c.muted, c.bg, "Secondary text"); chk(c.accentText, c.accent, "Button text");
     return out;
   }, [d.colors]);
-  const problems = useMemo(() => {
-    const out: string[] = [];
-    if (d.effects.length > p.limits.layers) out.push(`Your plan allows ${p.limits.layers} effect layers.`);
-    for (const e of d.effects) if (assetBy[e.asset]?.locked) out.push(`${assetBy[e.asset].name} needs ${assetBy[e.asset].needName}.`);
-    const m = banners.find((x) => x.id === d.hero.mediaId);
-    if (m && m.kind !== "image" && !p.limits.animatedBanner) out.push(`GIF and video banners need ${p.nextPlan.animated}.`);
-    if (m?.kind === "video" && !m.posterUrl) out.push("Your video banner needs a poster image.");
-    if (d.hero.parallax && !p.limits.parallax) out.push(`Parallax needs ${p.nextPlan.full}.`);
-    if (!p.limits.typeControls && (d.typeScale !== 1 || d.button !== template.config.button)) out.push(`Font size and button style need ${p.nextPlan.animated}.`);
-    for (const e of d.effects) if (assetBy[e.asset]?.renderer === "lottie" && !e.mediaId) out.push("Pick a Lottie file for your Lottie layer.");
-    return out;
-  }, [d, p.limits, p.nextPlan, assetBy, banners, template]);
+  const problems = useMemo(() => violations(d, p.access, c, new Map(p.media.map((m) => [m.id, m]))).map((v) => v.message), [d, p.access, c, p.media]);
 
   const run = (fn: typeof saveDraft, msg?: string, after?: () => void) => start(async () => {
     const json = JSON.stringify(d);
@@ -143,9 +146,11 @@ export function Editor(p: Props) {
   const updLayer = (id: string, patch: Partial<EffectLayer>) => set((x) => ({ ...x, effects: x.effects.map((e) => e.id === id ? { ...e, ...patch } : e) }));
   const addEffect = (a: EditorAsset) => {
     if (a.locked) return toast(`${a.name} needs ${a.needName}.`, "error");
-    if (d.effects.length >= p.limits.layers) return toast(`Your plan allows ${p.limits.layers} effect layers. Remove one first.`, "error");
+    if (d.effects.length >= lim.layers) return toast(`Your plan allows ${lim.layers} effect layers. Remove one first.`, "error");
     if (a.renderer === "lottie" && !lotties.length) return toast("Upload a Lottie file in Banners and media first.", "error");
-    const l = layer(a.slug, { mediaId: a.renderer === "lottie" ? lotties[0].id : null, id: Math.random().toString(36).slice(2, 10) });
+    if (a.renderer === "rive" && !rives.length) return toast("Upload a Rive file in Banners and media first.", "error");
+    const file = a.renderer === "lottie" ? lotties[0].id : a.renderer === "rive" ? rives[0].id : null;
+    const l = layer(a.slug, { mediaId: file, id: Math.random().toString(36).slice(2, 10) });
     set((x) => ({ ...x, effects: [...x.effects, l] })); setSel(l.id); setPane("settings");
     toast(`${a.name} added. Adjust it on the right.`);
   };
@@ -207,10 +212,54 @@ export function Editor(p: Props) {
             </select>
           </Row>
         ))}
-        <div className="flex items-center justify-between"><span className="text-sm font-medium">Font size and button style</span>{!p.limits.typeControls && <Locked need={p.nextPlan.animated} />}</div>
-        <Range label="Text size" value={d.typeScale} min={.85} max={1.25} step={.05} suffix="x" disabled={!p.limits.typeControls} onChange={(n) => set((x) => ({ ...x, typeScale: n }))} />
-        <div className={p.limits.typeControls ? "" : "pointer-events-none opacity-50"}>
+        <div className="flex items-center justify-between"><span className="text-sm font-medium">Font size and button style</span>{need("type_controls") && <Locked need={need("type_controls")!} />}</div>
+        <Range label="Text size" value={d.typeScale} min={.85} max={1.25} step={.05} suffix="x" disabled={!F("type_controls")} onChange={(n) => set((x) => ({ ...x, typeScale: n }))} />
+        <div className={F("type_controls") ? "" : "pointer-events-none opacity-50"}>
           <Seg label="Button style" value={d.button} options={BUTTONS.map((b) => [b, b[0].toUpperCase() + b.slice(1)])} onChange={(v) => set((x) => ({ ...x, button: v }))} />
+        </div>
+        <div className="flex items-center justify-between pt-2"><span className="text-sm font-medium">Premium typography</span>{need("type_premium") && <Locked need={need("type_premium")!} />}</div>
+        <Seg label="Heading case" value={d.style.headingCase} options={[["normal", "Normal"], ["upper", "UPPERCASE"]]} locked={(v) => (v === "upper" ? need("type_premium") : null)}
+          onChange={(v) => set((x) => ({ ...x, style: { ...x.style, headingCase: v } }))} />
+        <Range label="Heading letter spacing" value={d.style.tracking} min={-2} max={10} step={1} disabled={!F("type_premium")} onChange={(n) => set((x) => ({ ...x, style: { ...x.style, tracking: n } }))} />
+      </div>
+    ),
+    layout: () => (
+      <div className="space-y-4">
+        <div>
+          <p className="text-sm font-medium">Hero layout</p>
+          <Seg label="Hero layout" value={(d.style.hero ?? "template") as string} options={[["template", `Template (${HERO_LABEL[template.config.hero]})`], ...HEROES.filter((h) => h !== template.config.hero).map((h) => [h, HERO_LABEL[h]] as [string, string])]}
+            locked={(v) => (v === "template" ? null : need("hero_style"))} onChange={(v) => set((x) => ({ ...x, style: { ...x.style, hero: v === "template" ? null : (v as Design["style"]["hero"]) } }))} />
+        </div>
+        <div>
+          <p className="text-sm font-medium">Product card style</p>
+          <Seg label="Card style" value={(d.style.card ?? "template") as string} options={[["template", `Template (${template.config.card})`], ...CARDS.filter((x) => x !== template.config.card).map((x) => [x, x[0].toUpperCase() + x.slice(1)] as [string, string])]}
+            locked={(v) => (v === "template" ? null : need("card_style"))} onChange={(v) => set((x) => ({ ...x, style: { ...x.style, card: v === "template" ? null : (v as Design["style"]["card"]) } }))} />
+        </div>
+        <div>
+          <p className="text-sm font-medium">Page background</p>
+          <Seg label="Page background" value={d.style.background} options={BACKGROUNDS.map((b) => [b, BACKGROUND_LABEL[b]])} locked={(v) => need(BG_FEATURE[v])}
+            onChange={(v) => set((x) => ({ ...x, style: { ...x.style, background: v } }))} />
+        </div>
+        <div>
+          <p className="text-sm font-medium">Sections appear</p>
+          <Seg label="Section animation" value={d.style.transition} options={TRANSITIONS.map((t) => [t, TRANSITION_LABEL[t]])} locked={(v) => need(TR_FEATURE[v])}
+            onChange={(v) => set((x) => ({ ...x, style: { ...x.style, transition: v } }))} />
+        </div>
+        <div>
+          <p className="text-sm font-medium">Navigation style</p>
+          <Seg label="Navigation style" value={d.style.nav} options={NAV_STYLES.map((n) => [n, NAV_LABEL[n]])} locked={(v) => (v === "bar" ? null : need("nav_style"))}
+            onChange={(v) => set((x) => ({ ...x, style: { ...x.style, nav: v } }))} />
+        </div>
+        <div>
+          <div className="flex items-center justify-between"><p className="text-sm font-medium">Menu labels</p>{need("nav_labels") && <Locked need={need("nav_labels")!} />}</div>
+          <div className="mt-1 grid grid-cols-2 gap-1.5">
+            {(["products", "services", "about", "reviews", "contact", "policies"] as SectionId[]).map((id) => (
+              <input key={id} type="text" aria-label={`Label for ${SECTION_LABEL[id]}`} placeholder={SECTION_LABEL[id]} maxLength={18} disabled={!F("nav_labels")}
+                defaultValue={d.style.navLabels[id] ?? ""}
+                onBlur={(e) => set((x) => ({ ...x, style: { ...x.style, navLabels: { ...x.style.navLabels, [id]: e.target.value.trim() || undefined } } }))}
+                className="input py-1 text-sm disabled:opacity-50" />
+            ))}
+          </div>
         </div>
       </div>
     ),
@@ -220,7 +269,7 @@ export function Editor(p: Props) {
           <button type="button" onClick={() => set((x) => ({ ...x, hero: { ...x.hero, mediaId: null } }))} aria-pressed={!d.hero.mediaId}
             className={`grid aspect-video place-items-center rounded-lg border text-xs ${!d.hero.mediaId ? "border-palm" : "border-line"}`}>Cover image</button>
           {banners.map((m) => {
-            const locked = m.kind !== "image" && !p.limits.animatedBanner;
+            const locked = m.kind === "video" ? !lim.video : m.kind === "gif" ? !lim.gif || (m.bytes ?? 0) > lim.gifBytes : false;
             return (
               <button key={m.id} type="button" disabled={locked} aria-pressed={d.hero.mediaId === m.id} onClick={() => set((x) => ({ ...x, hero: { ...x.hero, mediaId: m.id } }))}
                 className={`relative aspect-video overflow-hidden rounded-lg border ${d.hero.mediaId === m.id ? "border-palm ring-2 ring-palm" : "border-line"} disabled:opacity-40`}>
@@ -238,14 +287,18 @@ export function Editor(p: Props) {
         <Range label="Overlay" value={d.hero.overlay} min={0} max={90} step={5} suffix="%" onChange={(n) => set((x) => ({ ...x, hero: { ...x.hero, overlay: n } }))} />
         <label className="flex items-center justify-between text-sm font-medium">Overlay colour<input type="color" value={d.hero.overlayColor} onChange={(e) => set((x) => ({ ...x, hero: { ...x.hero, overlayColor: e.target.value } }))} className="h-8 w-10 rounded border border-line bg-transparent" /></label>
         <label className="flex items-center justify-between gap-2 text-sm font-medium">
-          <span className="flex items-center gap-2"><input type="checkbox" checked={d.hero.parallax} disabled={!p.limits.parallax && !d.hero.parallax} onChange={(e) => set((x) => ({ ...x, hero: { ...x.hero, parallax: e.target.checked } }))} />Parallax scrolling</span>
-          {!p.limits.parallax && <Locked need={p.nextPlan.full} />}
+          <span className="flex items-center gap-2"><input type="checkbox" checked={d.hero.parallax} disabled={!lim.parallax && !d.hero.parallax} onChange={(e) => set((x) => ({ ...x, hero: { ...x.hero, parallax: e.target.checked } }))} />Parallax scrolling</span>
+          {need("parallax") && <Locked need={need("parallax")!} />}
         </label>
       </div>
     ),
     effects: () => (
       <div className="space-y-3">
-        <p className="text-sm">Layers: <b>{d.effects.length} of {p.limits.layers}</b> on {p.planName}. Phones show at most 3.</p>
+        <p className="text-sm">Layers: <b>{d.effects.length} of {lim.layers}</b> on {p.access.name}. Phones show at most 3.</p>
+        <div>
+          <div className="flex items-center justify-between"><span className="text-sm font-medium">Animation intensity</span>{need("intensity") && <Locked need={need("intensity")!} />}</div>
+          <Range label="Turns every effect up or down" value={d.style.intensity} min={.5} max={1.5} step={.1} suffix="x" disabled={!F("intensity")} onChange={(n) => set((x) => ({ ...x, style: { ...x.style, intensity: n } }))} />
+        </div>
         {d.effects.length > 0 && (
           <ul className="space-y-1">{d.effects.map((e, i) => (
             <li key={e.id}>
@@ -273,7 +326,7 @@ export function Editor(p: Props) {
     sections: () => (
       <ul className="space-y-1.5">
         {d.sections.map((s, i) => (
-          <li key={s.id} className="flex items-center justify-between rounded-lg border border-line px-2.5 py-1.5 text-sm">
+          <li key={s.id} className="flex flex-wrap items-center justify-between rounded-lg border border-line px-2.5 py-1.5 text-sm">
             <span className={s.visible ? "" : "text-mute line-through"}>{SECTION_LABEL[s.id]}</span>
             <span className="flex gap-1">
               <button type="button" aria-label={`Move ${SECTION_LABEL[s.id]} up`} disabled={i === 0} onClick={() => moveSection(i, -1)} className="rounded p-1 hover:bg-white/10 disabled:opacity-30"><ArrowUp size={15} /></button>
@@ -281,17 +334,33 @@ export function Editor(p: Props) {
               <button type="button" aria-label={`${s.visible ? "Hide" : "Show"} ${SECTION_LABEL[s.id]}`} aria-pressed={!s.visible}
                 onClick={() => set((x) => ({ ...x, sections: x.sections.map((y) => y.id === s.id ? { ...y, visible: !y.visible } : y) }))} className="rounded p-1 hover:bg-white/10">{s.visible ? <Eye size={15} /> : <EyeOff size={15} />}</button>
             </span>
+            <span className="mt-1.5 flex w-full flex-wrap gap-1.5">
+              <select aria-label={`${SECTION_LABEL[s.id]} background`} value={s.tone} disabled={!F("section_tone")} className="input w-auto py-0.5 text-xs disabled:opacity-50"
+                onChange={(e) => set((x) => ({ ...x, sections: x.sections.map((y) => y.id === s.id ? { ...y, tone: e.target.value as typeof s.tone } : y) }))}>
+                <option value="plain">Plain</option><option value="surface">Panel</option><option value="accent">Accent tint</option>
+              </select>
+              <select aria-label={`${SECTION_LABEL[s.id]} width`} value={s.width} disabled={!F("section_width")} className="input w-auto py-0.5 text-xs disabled:opacity-50"
+                onChange={(e) => set((x) => ({ ...x, sections: x.sections.map((y) => y.id === s.id ? { ...y, width: e.target.value as typeof s.width } : y) }))}>
+                <option value="normal">Normal width</option><option value="wide">Full width</option><option value="narrow">Narrow</option>
+              </select>
+            </span>
           </li>
         ))}
-        <li className="pt-1 text-xs text-mute">Sections with nothing in them (no services, no policies) hide themselves automatically.</li>
+        <li className="pt-1 text-xs text-mute">Sections with nothing in them (no services, no policies) hide themselves automatically.
+          {need("section_tone") && <> Section backgrounds need {need("section_tone")}.</>}{need("section_width") && <> Section widths need {need("section_width")}.</>}</li>
       </ul>
     ),
     products: () => (
       <div className="space-y-3">
+        <div>
+          <p className="text-sm font-medium">Layout</p>
+          <Seg label="Product layout" value={d.style.productLayout} options={PRODUCT_LAYOUTS.map((l) => [l, PRODUCT_LAYOUT_LABEL[l]])} locked={(v) => need(LAYOUT_FEATURE[v])}
+            onChange={(v) => set((x) => ({ ...x, style: { ...x.style, productLayout: v } }))} />
+        </div>
         <Seg label="Columns on desktop" value={String(d.products.columns) as "2" | "3" | "4"} options={[["2", "2"], ["3", "3"], ["4", "4"]]} onChange={(v) => set((x) => ({ ...x, products: { ...x.products, columns: Number(v) as 2 | 3 | 4 } }))} />
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.products.showStock} onChange={(e) => set((x) => ({ ...x, products: { ...x.products, showStock: e.target.checked } }))} />Show stock levels</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.products.showRating} onChange={(e) => set((x) => ({ ...x, products: { ...x.products, showRating: e.target.checked } }))} />Show ratings</label>
-        <p className="text-xs text-mute">Card style comes from your template. Prices and stock always come from your listings.</p>
+        <p className="text-xs text-mute">Pick a card style under Layout and motion. Prices and stock always come from your listings.</p>
       </div>
     ),
   };
@@ -303,12 +372,16 @@ export function Editor(p: Props) {
         <div className="flex items-center justify-between"><h3 className="font-bold">{a?.name ?? selected.asset}</h3>
           <button type="button" onClick={() => { set((x) => ({ ...x, effects: x.effects.filter((e) => e.id !== selected.id) })); setSel(null); }} className="flex items-center gap-1 text-sm text-coral"><Trash2 size={14} aria-hidden />Remove</button></div>
         {a?.locked && <p className="text-sm text-sun">This effect needs {a.needName}. It stays switched off on your store until you upgrade or remove it.</p>}
+        {a?.renderer === "rive" && (
+          <Row label="Rive file"><select className="input mt-1 py-2" value={selected.mediaId ?? ""} onChange={(e) => updLayer(selected.id, { mediaId: e.target.value || null })}>
+            <option value="">Choose a file</option>{rives.map((m, i) => <option key={m.id} value={m.id}>Rive {i + 1}</option>)}</select></Row>
+        )}
         {a?.renderer === "lottie" && (
           <Row label="Lottie file"><select className="input mt-1 py-2" value={selected.mediaId ?? ""} onChange={(e) => updLayer(selected.id, { mediaId: e.target.value || null })}>
             <option value="">Choose a file</option>{lotties.map((m, i) => <option key={m.id} value={m.id}>Lottie {i + 1}</option>)}</select></Row>
         )}
-        <Seg label="Where" value={selected.scope} options={[["hero", "Banner"], ["page", "Whole page"]]} onChange={(v) => updLayer(selected.id, { scope: v })} />
-        <Seg label="Layer" value={selected.layer} options={[["back", "Behind content"], ["front", "In front"]]} onChange={(v) => updLayer(selected.id, { layer: v })} />
+        <Seg label="Where" value={selected.scope} options={[["hero", "Banner"], ["page", "Whole page"]]} locked={(v) => (v === "page" ? need("effect_layering") : null)} onChange={(v) => updLayer(selected.id, { scope: v })} />
+        <Seg label="Layer" value={selected.layer} options={[["back", "Behind content"], ["front", "In front"]]} locked={(v) => (v === "front" ? need("effect_layering") : null)} onChange={(v) => updLayer(selected.id, { layer: v })} />
         <div>
           <p className="text-sm font-medium">Anchor</p>
           <div role="radiogroup" aria-label="Anchor" className="mt-1 grid w-28 grid-cols-3 gap-1">
@@ -317,12 +390,14 @@ export function Editor(p: Props) {
           </div>
         </div>
         <Range label="Size" value={selected.size} min={10} max={100} step={5} suffix="%" onChange={(n) => updLayer(selected.id, { size: n })} />
-        <Range label="Offset across" value={selected.x} min={-50} max={50} step={1} suffix="%" onChange={(n) => updLayer(selected.id, { x: n })} />
-        <Range label="Offset down" value={selected.y} min={-50} max={50} step={1} suffix="%" onChange={(n) => updLayer(selected.id, { y: n })} />
+        {need("effect_position") && <p className="flex items-center justify-between text-xs text-mute">Custom positioning <Locked need={need("effect_position")!} /></p>}
+        <Range label="Offset across" value={selected.x} min={-50} max={50} step={1} suffix="%" disabled={!F("effect_position")} onChange={(n) => updLayer(selected.id, { x: n })} />
+        <Range label="Offset down" value={selected.y} min={-50} max={50} step={1} suffix="%" disabled={!F("effect_position")} onChange={(n) => updLayer(selected.id, { y: n })} />
         <Range label="Opacity" value={selected.opacity} min={.05} max={1} step={.05} onChange={(n) => updLayer(selected.id, { opacity: n })} />
-        <Range label="Speed" value={selected.speed} min={.25} max={3} step={.25} suffix="x" onChange={(n) => updLayer(selected.id, { speed: n })} />
-        {ps.direction && <Range label="Direction" value={selected.direction} min={0} max={359} step={5} suffix="°" onChange={(n) => updLayer(selected.id, { direction: n })} />}
-        {ps.density && <Range label="Density" value={selected.density} min={.2} max={2} step={.1} suffix="x" onChange={(n) => updLayer(selected.id, { density: n })} />}
+        {need("effect_controls") && <p className="flex items-center justify-between text-xs text-mute">Speed, direction and density <Locked need={need("effect_controls")!} /></p>}
+        <Range label="Speed" value={selected.speed} min={.25} max={3} step={.25} suffix="x" disabled={!F("effect_controls")} onChange={(n) => updLayer(selected.id, { speed: n })} />
+        {ps.direction && <Range label="Direction" value={selected.direction} min={0} max={359} step={5} suffix="°" disabled={!F("effect_controls")} onChange={(n) => updLayer(selected.id, { direction: n })} />}
+        {ps.density && <Range label="Density" value={selected.density} min={.2} max={2} step={.1} suffix="x" disabled={!F("effect_controls")} onChange={(n) => updLayer(selected.id, { density: n })} />}
         {ps.color && (
           <label className="flex items-center justify-between text-sm font-medium">Colour
             <span className="flex items-center gap-2">

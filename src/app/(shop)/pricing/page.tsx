@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { Reveal } from "@/components/motion";
+import { PlanComparison } from "@/components/plan-comparison";
 import { LinkButton } from "@/components/ui";
 import { asUser } from "@/lib/db";
 import { naira } from "@/lib/format";
@@ -11,7 +12,7 @@ export default async function Pricing() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="max-w-2xl text-4xl font-bold sm:text-6xl">Start with K-Leg. Grow into Odogwu.</h1>
-      <p className="mt-3 max-w-lg text-lg text-mute">Every plan gets one storefront. You move up when you need more listings, photos and reach.</p>
+      <p className="mt-3 max-w-lg text-lg text-mute">K-Leg gets one storefront and 10 designs. No Dulling gets 3 storefronts and 20 designs. Odogwu gets 5 storefronts, all 50 designs and every effect.</p>
       <div className="mt-10 grid gap-4 md:grid-cols-3">
         {plans.map((p, i) => {
           const hero = i === plans.length - 1;
@@ -30,6 +31,9 @@ export default async function Pricing() {
           );
         })}
       </div>
+      <h2 className="mt-14 text-2xl font-bold sm:text-3xl">Compare every feature</h2>
+      <p className="mt-1 text-mute">Exactly what each plan unlocks, straight from the live plan settings.</p>
+      <div className="mt-5"><PlanComparison /></div>
     </div>
   );
 }

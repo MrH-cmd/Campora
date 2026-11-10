@@ -9,7 +9,10 @@ export async function deletionBlockers(db: Db, userId: string) {
     `select count(*)::int n from orders o left join storefronts s on s.id=o.storefront_id
      where (o.buyer_id=$1 or s.owner_id=$1) and o.status not in ('completed','cancelled') and o.payment_status<>'awaiting_payment'`, [userId]);
   if (open.n) out.push(`You have ${open.n} open order${open.n > 1 ? "s" : ""}. Complete or cancel them first.`);
-  const b = await db.one("select b.* from seller_balances b join storefronts s on s.id=b.storefront_id where s.owner_id=$1", [userId]);
+  // Added up across every storefront the seller owns.
+  const b = await db.one(
+    `select sum(b.earned_kobo) earned_kobo, sum(b.paid_out_kobo) paid_out_kobo, sum(b.requested_kobo) requested_kobo, sum(b.owed_kobo) owed_kobo
+     from seller_balances b join storefronts s on s.id=b.storefront_id where s.owner_id=$1 having count(*) > 0`, [userId]);
   if (b) {
     const available = Number(b.earned_kobo) - Number(b.paid_out_kobo) - Number(b.requested_kobo) - Number(b.owed_kobo);
     if (available > 0) out.push("You have seller earnings to withdraw. Request a payout first.");

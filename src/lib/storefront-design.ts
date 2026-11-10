@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ANCHORS, BUTTONS, FONT_IDS, SECTION_IDS, type Design } from "./storefront-catalog";
+import { ANCHORS, BACKGROUNDS, BUTTONS, CARDS, DEFAULT_STYLE, FONT_IDS, HEROES, NAV_STYLES, PRODUCT_LAYOUTS, SECTION_IDS, TRANSITIONS, type Design } from "./storefront-catalog";
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Colours must be six-digit hex values");
 const font = z.enum(FONT_IDS as [string, ...string[]]);
@@ -28,10 +28,20 @@ export const designSchema = z.strictObject({
     overlay: num(0, 90), overlayColor: hex, opacity: num(20, 100), parallax: z.boolean(),
   }),
   products: z.strictObject({ columns: z.union([z.literal(2), z.literal(3), z.literal(4)]), showStock: z.boolean(), showRating: z.boolean() }),
-  sections: z.array(z.strictObject({ id: z.enum(SECTION_IDS), visible: z.boolean() })).length(SECTION_IDS.length)
+  sections: z.array(z.strictObject({
+    id: z.enum(SECTION_IDS), visible: z.boolean(),
+    tone: z.enum(["plain", "surface", "accent"]).default("plain"), width: z.enum(["normal", "wide", "narrow"]).default("normal"),
+  })).length(SECTION_IDS.length)
     .refine((s) => new Set(s.map((x) => x.id)).size === SECTION_IDS.length, "Each section must appear once"),
   effects: z.array(effect).max(MAX_LAYERS, `A store can have at most ${MAX_LAYERS} effect layers`)
     .refine((e) => new Set(e.map((x) => x.id)).size === e.length, "Effect layers need unique ids"),
+  style: z.strictObject({
+    background: z.enum(BACKGROUNDS), transition: z.enum(TRANSITIONS),
+    hero: z.enum(HEROES).nullable(), card: z.enum(CARDS).nullable(), productLayout: z.enum(PRODUCT_LAYOUTS), nav: z.enum(NAV_STYLES),
+    // Plain words only: letters, numbers, spaces and a little punctuation, so a label can't carry markup.
+    navLabels: z.partialRecord(z.enum(SECTION_IDS), z.string().trim().max(18).regex(/^[\p{L}\p{N} &'.-]*$/u, "Menu labels can only use letters, numbers and spaces")),
+    headingCase: z.enum(["normal", "upper"]), tracking: num(-2, 10), intensity: num(.5, 1.5),
+  }).default(DEFAULT_STYLE),
 });
 
 export function parseDesign(input: unknown): Design {

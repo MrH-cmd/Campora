@@ -93,8 +93,8 @@ async function main() {
 
   const plans = [
     ["k-leg", "K-Leg", "For testing the market", 0, 5, 4, 0, 0, false, false, 0, ["One storefront", "Five active products or services", "Four photos per listing", "Basic enquiries and orders", "Basic promotions, ratings and statistics"]],
-    ["no-dulling", "No Dulling", "For businesses gaining pace", 1500000, 20, 8, 1, 1, true, false, 0, ["One storefront", "20 active listings", "Eight photos per listing", "Advanced storefront customization", "Detailed analytics", "Advanced discounts and promotions"]],
-    ["odogwu", "Odogwu", "For the biggest shops on campus", 3000000, 100, 12, 2, 2, true, true, 3, ["One storefront", "Up to 100 active listings", "Twelve photos per listing", "Full storefront customization", "Advanced analytics", "Marketing campaigns", "Monthly Store Boost credits"]],
+    ["no-dulling", "No Dulling", "For businesses gaining pace", 1500000, 20, 8, 1, 1, true, false, 0, ["Three storefronts", "20 active listings", "Eight photos per listing", "Advanced storefront customization", "Detailed analytics", "Advanced discounts and promotions"]],
+    ["odogwu", "Odogwu", "For the biggest shops on campus", 3000000, 100, 12, 2, 2, true, true, 3, ["Five storefronts", "Up to 100 active listings", "Twelve photos per listing", "Full storefront customization", "Advanced analytics", "Marketing campaigns", "Monthly Store Boost credits"]],
   ] as const;
   let free = "";
   for (const [i, p] of plans.entries()) {
@@ -103,6 +103,8 @@ async function main() {
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id`, [...p.slice(0, 11), p[11], i]);
     if (i === 0) free = r.id;
   }
+  await db.query(`update subscription_plans set storefront_limit = case code when 'no-dulling' then 3 when 'odogwu' then 5 else 1 end,
+                    effect_layers = case code when 'no-dulling' then 4 when 'odogwu' then 6 else 2 end`);
   for (const [k, v] of [["commission_bps", 500], ["pay_on_pickup_enabled", true], ["require_listing_review", true], ["deletion_grace_days", 7], ["selling_requires_student", true]] as const)
     await db.query("insert into platform_settings(key,value) values ($1,$2) on conflict (key) do nothing", [k, JSON.stringify(v)]);
   const pk = async (name: string, place: string, days: number, credits: number) => (await one("insert into boost_packages(name,placement,duration_days,credit_cost) values ($1,$2,$3,$4) returning id", [name, place, days, credits])).id;

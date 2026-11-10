@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const TABS: [string, string][] = [["", "Overview"], ["/designs", "Designs"], ["/editor", "Editor"], ["/media", "Banners and media"], ["/analytics", "Analytics"]];
+const TABS: [string, string][] = [["", "Overview"], ["/stores", "Storefronts"], ["/designs", "Designs"], ["/editor", "Editor"], ["/media", "Banners and media"], ["/analytics", "Analytics"]];
 export function StoreTabs({ on }: { on: string }) {
   return (
     <nav aria-label="My Storefront" className="mb-5 flex gap-1 overflow-x-auto border-b border-line">

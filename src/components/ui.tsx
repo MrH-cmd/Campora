@@ -80,8 +80,8 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-tag border border-line bg-card p-4 sm:p-5 ${className}`}>{children}</section>;
+export function Card({ children, className = "", ...rest }: { children: ReactNode; className?: string } & Omit<React.HTMLAttributes<HTMLElement>, "className" | "children">) {
+  return <section {...rest} className={`rounded-tag border border-line bg-card p-4 sm:p-5 ${className}`}>{children}</section>;
 }
 
 export function Img({ path, alt, className = "" }: { path?: string | null; alt: string; className?: string }) {

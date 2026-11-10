@@ -317,7 +317,7 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await p.fill("[name=email]", "bowl@campora.test"); await p.fill("[name=password]", PW); await p.click('button:has-text("Log in")'); await p.waitForTimeout(1500); expect(p.url().startsWith(BASE), p.url());
   });
   await step("every link on every buyer, seller and admin page works", async () => {
-    for (const [p, starts] of [[anon, ["/", "/pricing", "/search"]], [buyer, ["/", "/account", "/account/orders", "/account/rewards", "/messages", "/notifications", "/cart"]], [newbie, ["/seller", "/seller/orders", "/seller/listings", "/seller/storefront", "/seller/analytics", "/seller/promotions", "/seller/boosts", "/seller/earnings", "/seller/billing", "/seller/pickup", "/seller/services", "/seller/storefront/designs", "/seller/storefront/editor", "/seller/storefront/media", "/seller/storefront/analytics"]], [admin, ["/admin", "/admin/users", "/admin/verifications", "/admin/sellers", "/admin/listings", "/admin/categories", "/admin/reports", "/admin/disputes", "/admin/finance", "/admin/settings", "/admin/logs", "/admin/discounts", "/admin/referrals", "/admin/earnings", "/admin/storefronts", "/admin/storefronts/media", "/admin/templates"]]] as [Page, string[]][]) {
+    for (const [p, starts] of [[anon, ["/", "/pricing", "/search"]], [buyer, ["/", "/account", "/account/orders", "/account/rewards", "/messages", "/notifications", "/cart"]], [newbie, ["/seller", "/seller/orders", "/seller/listings", "/seller/storefront", "/seller/analytics", "/seller/promotions", "/seller/boosts", "/seller/earnings", "/seller/billing", "/seller/pickup", "/seller/services", "/seller/storefront/designs", "/seller/storefront/editor", "/seller/storefront/media", "/seller/storefront/analytics", "/seller/storefront/stores"]], [admin, ["/admin", "/admin/users", "/admin/verifications", "/admin/sellers", "/admin/listings", "/admin/categories", "/admin/reports", "/admin/disputes", "/admin/finance", "/admin/settings", "/admin/logs", "/admin/discounts", "/admin/referrals", "/admin/earnings", "/admin/storefronts", "/admin/storefronts/media", "/admin/templates", "/admin/plans"]]] as [Page, string[]][]) {
       const seen = new Set<string>();
       for (const s of starts) {
         await p.goto(BASE + s); await p.waitForTimeout(250);
@@ -513,6 +513,26 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     expect(await who.locator("article[data-locked]").count() === 0, "new admin should see every template unlocked");
     await admin.goto(`${BASE}/admin/users?role=admin`); await admin.locator('tr:has-text("bowl") button:has-text("Remove admin")').click(); await admin.click('button:has-text("Yes, continue")'); await toast(admin, "no longer an admin");
     expect((await who.request.get(`${BASE}/admin`)).status() === 403, "removed admin still has access");
+  });
+  await step("No Dulling seller opens a second storefront, switches between them, and sees what's locked", async () => {
+    await anon.goto(`${BASE}/pricing`); const table = anon.locator("[data-plan-comparison]");
+    expect((await table.locator('tr:has(th:text-is("Storefronts")) td').allInnerTexts()).join(",") === "1,3,5", "comparison storefront counts");
+    const want = sql("select string_agg(n::text, ',' order by lvl) from (select p.customization_level lvl, (select count(*) from storefront_templates t join subscription_plans q on q.code=t.min_plan_code where t.is_active and q.customization_level<=p.customization_level) n from subscription_plans p) x");
+    const got = (await table.locator('tr:has(th:has-text("Storefront designs")) td').allInnerTexts()).join(",");
+    expect(got === want, `comparison design counts ${got} vs ${want}`);
+    await newbie.bringToFront(); await newbie.goto(`${BASE}/seller/storefront/stores`); await newbie.waitForTimeout(500);
+    await newbie.fill("[name=name]", "Chidi Chops"); await newbie.click('button:has-text("Open storefront")'); await toast(newbie, "Chidi Chops is open");
+    await newbie.goto(`${BASE}/seller/storefront`); await newbie.waitForTimeout(500);
+    expect(await newbie.locator('select[aria-label="Storefront you\'re working on"]').inputValue() === sql("select id from storefronts where name='Chidi Chops'"), "switched to new store");
+    await newbie.locator('select[aria-label="Storefront you\'re working on"]').selectOption({ label: "Chidi Prints" }); await toast(newbie, "Now working on Chidi Prints");
+    await newbie.goto(`${BASE}/seller/storefront/editor`); await newbie.waitForTimeout(800);
+    await newbie.click('button:has-text("Layout and motion")');
+    expect(await newbie.locator('button[role=radio][aria-disabled=true]:has-text("Cinematic wipe")').count() === 1, "cinematic should be locked on No Dulling");
+    await newbie.locator('button[role=radio]:has-text("Rise up")').click();
+    expect(await newbie.locator('[data-editor] .sf[data-tr="rise"]').count() === 1, "preview follows the transition choice");
+    await newbie.goto(`${BASE}/seller/storefront/analytics`); await newbie.locator('[data-analytics="engagement"]').waitFor();
+    expect(await newbie.locator('[data-locked-analytics="analytics_insights"]').count() === 1, "insights locked on No Dulling");
+    await anon.goto(`${BASE}/store/${sql("select slug from storefronts where name='Chidi Chops'")}`); await anon.getByText("Chidi Chops").first().waitFor();
   });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 

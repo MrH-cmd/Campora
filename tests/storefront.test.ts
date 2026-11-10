@@ -85,7 +85,7 @@ describe("plan access", () => {
     const draft = (x: Partial<Design>) => saveDraft({}, fd({ design: JSON.stringify({ ...d, ...x }) }));
     expect((await draft({ effects: [layer("rain")] })).error).toMatch(/Rain needs the No Dulling plan/);
     expect((await draft({ effects: [layer("aurora"), layer("soft-glow"), layer("grid-pulse")] })).error).toMatch(/allows 2 effect layers/);
-    expect((await draft({ typeScale: 1.2 })).error).toMatch(/font sizes/);
+    expect((await draft({ typeScale: 1.2 })).error).toMatch(/font sizes/i);
     expect((await draft({ hero: { ...d.hero, parallax: true } })).error).toMatch(/Parallax/);
     expect((await draft({ effects: [layer("aurora"), layer("soft-glow")] })).ok).toBe(true);
     // Publishing re-checks, even when the design is sent directly.

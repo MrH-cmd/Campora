@@ -1,5 +1,5 @@
 import { Editor } from "@/components/storefront/editor";
-import { canUseEffect, limits, planForLevel, planName, rankOf } from "@/lib/storefront-access";
+import { canUseEffect, planName, rankOf } from "@/lib/storefront-access";
 import { loadBuilder } from "../data";
 import { StoreTabs } from "../tabs";
 
@@ -13,10 +13,9 @@ export default async function EditorPage() {
   const plain = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
   return (
     <>
-    <StoreTabs on="/editor" />
-    <Editor initial={b.draft} published={b.published} templates={plain(c.templates)} assets={assets} fx={b.assets} media={b.active} content={plain(b.content!)}
-      limits={limits(b.access.level)} planName={b.access.name}
-      nextPlan={{ animated: planName(c, planForLevel(c, 1)), full: planName(c, planForLevel(c, 2)) }} />
+      <StoreTabs on="/editor" />
+      <Editor initial={b.draft} published={b.published} assets={assets} fx={b.assets} media={b.active} content={plain(b.content!)}
+        access={b.access} catalog={plain(c)} />
     </>
   );
 }

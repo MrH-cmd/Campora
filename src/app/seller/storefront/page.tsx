@@ -7,6 +7,8 @@ import { Badge, Card, LinkButton, PageHead, statusTone } from "@/components/ui";
 import { asUser } from "@/lib/db";
 import { transfers } from "@/lib/payments/providers";
 import { SOCIAL_HOSTS, type Social } from "@/lib/storefront-design";
+import { canUseTemplate } from "@/lib/storefront-access";
+import { shortDate } from "@/lib/format";
 import { loadBuilder } from "./data";
 import { StoreTabs } from "./tabs";
 
@@ -17,7 +19,13 @@ export default async function Storefront() {
   const { user, store: s } = await sellerContext();
   const profile = await asUser(user.id, (db) => db.one("select * from seller_profiles where user_id=$1", [user.id]));
   const banks = transfers.configured() ? await transfers.banks().catch(() => []) : [];
+  const { stores } = await sellerContext();
   const b = s ? await loadBuilder() : null;
+  const sub = await asUser(user.id, (db) => db.one("select expires_at from subscriptions where seller_id=$1 and status='active' order by expires_at desc nulls last limit 1", [user.id]));
+  const active = b ? b.catalog.templates.filter((t) => t.is_active !== false) : [];
+  const allTemplates = active.length;
+  const openTemplates = b ? active.filter((t) => canUseTemplate(b.catalog, b.access, t)).length : 0;
+  const featuresOn = b ? Object.values(b.access.features).filter(Boolean).length : 0;
   const template = b ? b.catalog.templates.find((t) => t.slug === (b.published ?? b.draft).template) : null;
   const dirty = b && b.row?.draft && JSON.stringify(b.row.draft) !== JSON.stringify(b.row.published);
 
@@ -41,11 +49,15 @@ export default async function Storefront() {
             <p className="mt-1 text-sm text-mute">{b.row?.published_at ? `Last published ${new Date(b.row.published_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}` : "Not published yet. Your store uses the default design."}</p>
             {dirty && <p className="mt-1 text-sm text-sun">You have unpublished changes.</p>}
           </Card>
-          <Card>
+          <Card data-plan-summary>
             <p className="text-sm text-mute">Plan</p>
-            <p className="mt-1 font-bold">{b.access.name}</p>
-            <p className="mt-1 text-sm text-mute">{[10, 20, 50][Math.min(2, b.access.level)]} templates, {[2, 4, 6][Math.min(2, b.access.level)]} effect layers{b.access.level >= 1 ? ", GIF and video banners" : ""}.</p>
-            {b.access.level < 2 && <Link className="mt-2 inline-block text-sm font-semibold text-palm-deep underline" href="/seller/billing">Upgrade for more</Link>}
+            <p className="mt-1 font-bold">{b.access.name} <span className="text-sm font-normal text-mute">{sub?.expires_at ? `· renews or ends ${shortDate(sub.expires_at)}` : user.role === "admin" ? "· included for admins" : "· free, no expiry"}</span></p>
+            <ul className="mt-1 space-y-0.5 text-sm text-ink-3">
+              <li><b data-templates-open>{openTemplates}</b> designs unlocked, {allTemplates - openTemplates} locked</li>
+              <li>{stores.length} of {b.access.storefronts} storefront{b.access.storefronts > 1 ? "s" : ""} in use</li>
+              <li>{b.access.layers} effect layers, {featuresOn} of {b.catalog.features.length} design features</li>
+            </ul>
+            <Link className="mt-2 inline-block text-sm font-semibold text-palm-deep underline" href="/seller/billing">{b.access.level < 2 ? "Compare plans and upgrade" : "Compare plans"}</Link>
           </Card>
         </div>
       )}

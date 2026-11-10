@@ -7,7 +7,7 @@ import { FONTS, SECTION_LABEL, type Design, type SectionId, type Template } from
 import type { MediaItem } from "@/lib/storefront-access";
 import { SOCIAL_HOSTS, socialUrl, type Social } from "@/lib/storefront-design";
 import type { StoreContent, StoreItem } from "@/lib/storefront";
-import { Follow, HeroMedia, ItemLink, QuickAdd, ShareStore, TrackVisit } from "./client";
+import { Follow, HeroMedia, ItemLink, QuickAdd, Reveal, ShareStore, TrackVisit } from "./client";
 import { EffectLayers, type FxAssets } from "./effects";
 import "./storefront.css";
 
@@ -85,6 +85,27 @@ function Row({ i, d, sid }: { i: StoreItem; d: Design; sid: string }) {
 }
 
 function Products({ items, d, a, sid }: { items: StoreItem[]; d: Design; a: Template["archetype"]; sid: string }) {
+  // A layout the seller picked wins over the template's built-in arrangement.
+  const pick = d.style.productLayout;
+  if (pick === "list") return <div className="sf-rows sf-list-layout">{items.map((i) => <Row key={i.id} i={i} d={d} sid={sid} />)}</div>;
+  if (pick === "carousel") return <div className="sf-carousel" tabIndex={0} aria-label="Products, scroll sideways">{items.map((i) => <Card key={i.id} i={i} d={d} sid={sid} />)}</div>;
+  if (pick === "spotlight" && items.length) {
+    const [top, ...more] = items;
+    return (
+      <>
+        <article className="sf-lead sf-spotlight" data-item={top.slug}>
+          <Thumb i={top} sid={sid} className="sf-card-media" />
+          <div>
+            <p className="sf-kicker">In the spotlight</p>
+            <h3><ItemLink href={`/listing/${top.slug}`} storefrontId={sid}>{top.title}</ItemLink></h3>
+            <p className="sf-prose">{top.description}</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}><Price i={top} /><QuickAdd listingId={top.id} disabled={!top.in_stock} /></div>
+          </div>
+        </article>
+        {more.length > 0 && <div className="sf-carousel">{more.map((i) => <Card key={i.id} i={i} d={d} sid={sid} />)}</div>}
+      </>
+    );
+  }
   if (a === "menu") {
     const cats = [...new Set(items.map((i) => i.category))];
     return <>{cats.map((c) => (
@@ -151,21 +172,22 @@ function Services({ items, sid }: { items: StoreItem[]; sid: string }) {
 
 /** One storefront, drawn from a design. The public page and every preview in the editor use this same component. */
 export function StorefrontView({ content, design: d, template, heroStill = false, media, assets, preview, following, isOwner, stickyTop = 0 }: ViewProps) {
-  const { store: s } = content; const a = template.archetype; const hero = template.config.hero;
+  const { store: s } = content; const a = template.archetype; const hero = d.style.hero ?? template.config.hero; const card = d.style.card ?? template.config.card;
+  const label = (id: SectionId) => d.style.navLabels[id]?.trim() || SECTION_LABEL[id];
   const products = content.items.filter((i) => i.kind === "product"); const services = content.items.filter((i) => i.kind === "service");
   const banner = d.hero.mediaId ? media.find((m) => m.id === d.hero.mediaId && m.kind !== "lottie") ?? null : null;
   const bannerUrl = banner?.url ?? s.cover; const poster = banner ? banner.posterUrl ?? (banner.kind === "image" ? banner.url : s.cover) : s.cover;
-  const lottie = Object.fromEntries(media.filter((m) => m.kind === "lottie").map((m) => [m.id, m.url]));
+  const lottie = Object.fromEntries(media.filter((m) => m.kind === "lottie" || m.kind === "rive").map((m) => [m.id, m.url]));
   const fx = (scope: "hero" | "page", zone: "back" | "front") => (
     <EffectLayers zone={zone} assets={assets} lottie={lottie} accent={d.colors.accent}
-      layers={d.effects.map((l, index) => ({ l, index })).filter(({ l }) => l.scope === scope && l.layer === zone)} />
+      layers={d.effects.map((l, index) => ({ l, index })).filter(({ l }) => l.scope === scope && l.layer === zone)} intensity={d.style.intensity} />
   );
   const socials = (Object.keys(SOCIAL_HOSTS) as Social[]).map((k) => [k, socialUrl(k, s.social[k])] as const).filter(([, u]) => u);
   const has: Record<SectionId, boolean> = { products: products.length > 0, services: services.length > 0, about: true, reviews: true, contact: !isOwner, policies: !!s.policies };
   const order = d.sections.filter((x) => x.visible && has[x.id]).map((x) => x.id);
   const vars = {
     "--sf-bg": d.colors.bg, "--sf-surface": d.colors.surface, "--sf-text": d.colors.text, "--sf-muted": d.colors.muted, "--sf-accent": d.colors.accent, "--sf-accent-text": d.colors.accentText,
-    "--sf-fh": FONTS[d.fonts.heading][1], "--sf-fb": FONTS[d.fonts.body][1], "--sf-scale": d.typeScale, "--sf-cols": d.products.columns, "--sf-cols-md": Math.min(3, d.products.columns), "--sf-top": `${stickyTop}px`,
+    "--sf-fh": FONTS[d.fonts.heading][1], "--sf-fb": FONTS[d.fonts.body][1], "--sf-scale": d.typeScale, "--sf-cols": d.products.columns, "--sf-cols-md": Math.min(3, d.products.columns), "--sf-top": `${stickyTop}px`, "--sf-track": `${d.style.tracking / 100}em`,
   } as CSSProperties;
 
   const mediaEl = (
@@ -206,8 +228,8 @@ export function StorefrontView({ content, design: d, template, heroStill = false
     <div className="sf-sec-head"><h2 className="sf-h2">{title}</h2>{kicker && <span className="sf-kicker">{kicker}</span>}</div>
   );
   const section: Record<SectionId, () => ReactNode> = {
-    products: () => <>{head("products", "Products", `${products.length} ${products.length === 1 ? "item" : "items"}`)}<Products items={products} d={d} a={a} sid={s.id} /></>,
-    services: () => <>{head("services", "Services", `${services.length} on offer`)}{a === "menu" ? <div className="sf-rows">{services.map((i) => <Row key={i.id} i={i} d={d} sid={s.id} />)}</div> : <Services items={services} sid={s.id} />}</>,
+    products: () => <>{head("products", label("products"), `${products.length} ${products.length === 1 ? "item" : "items"}`)}<Products items={products} d={d} a={a} sid={s.id} /></>,
+    services: () => <>{head("services", label("services"), `${services.length} on offer`)}{a === "menu" ? <div className="sf-rows">{services.map((i) => <Row key={i.id} i={i} d={d} sid={s.id} />)}</div> : <Services items={services} sid={s.id} />}</>,
     about: () => (
       <>
         {head("about", `About ${s.name}`)}
@@ -229,7 +251,7 @@ export function StorefrontView({ content, design: d, template, heroStill = false
     ),
     reviews: () => (
       <>
-        {head("reviews", "Reviews", s.reviewCount ? `${s.rating.toFixed(1)} from ${s.reviewCount}` : undefined)}
+        {head("reviews", label("reviews"), s.reviewCount ? `${s.rating.toFixed(1)} from ${s.reviewCount}` : undefined)}
         {content.reviews.length === 0 ? <p className="sf-muted">No reviews yet. Reviews come from buyers after a completed order.</p> : (
           <div className="sf-reviews">{content.reviews.map((r) => (
             <div key={r.id} className="sf-box">
@@ -243,7 +265,7 @@ export function StorefrontView({ content, design: d, template, heroStill = false
     ),
     contact: () => (
       <>
-        {head("contact", "Contact")}
+        {head("contact", label("contact"))}
         <div className="sf-two">
           <div className="sf-box">
             <Form action={sendEnquiry} className="space-y-2">
@@ -262,12 +284,14 @@ export function StorefrontView({ content, design: d, template, heroStill = false
         </div>
       </>
     ),
-    policies: () => <>{head("policies", "Store policies")}<div className="sf-box"><p className="sf-prose">{s.policies}</p></div></>,
+    policies: () => <>{head("policies", d.style.navLabels.policies?.trim() || "Store policies")}<div className="sf-box"><p className="sf-prose">{s.policies}</p></div></>,
   };
 
   return (
-    <div className={`sf sf-a-${a} sf-h-${hero} sf-c-${template.config.card} sf-b-${d.button}`} style={vars} data-template={d.template} inert={preview || undefined}>
+    <div className={`sf sf-a-${a} sf-h-${hero} sf-c-${card} sf-b-${d.button} sf-bg-${d.style.background} sf-nav-${d.style.nav}`} style={vars} data-template={d.template}
+      data-tr={d.style.transition} data-case={d.style.headingCase} data-layout={d.style.productLayout} inert={preview || undefined}>
       {!preview && !isOwner && <TrackVisit storefrontId={s.id} />}
+      <Reveal off={d.style.transition === "none"} />
       {fx("page", "back")}
       {s.announcement && <p className="sf-announce">{s.announcement}</p>}
       <header className="sf-hero" id="sf-home" data-h={d.hero.height}>{heroEl}</header>
@@ -281,13 +305,16 @@ export function StorefrontView({ content, design: d, template, heroStill = false
         </div></div>
       )}
       <nav className="sf-nav" aria-label={`${s.name} sections`} style={{ top: "var(--sf-top)" }}>
-        <div className="sf-wrap"><ul><li><a href="#sf-home">Home</a></li>{order.map((id) => <li key={id}><a href={`#sf-${id}`}>{SECTION_LABEL[id]}</a></li>)}</ul></div>
+        <div className="sf-wrap"><ul><li><a href="#sf-home">Home</a></li>{order.map((id) => <li key={id}><a href={`#sf-${id}`}>{label(id)}</a></li>)}</ul></div>
       </nav>
       <div className="sf-wrap sf-main">
         {a === "portfolio" && s.description && <p className="sf-intro">{s.description.split(/(?<=[.!?])\s/)[0]}</p>}
         {content.campaign && <div className="sf-campaign"><b style={{ fontFamily: "var(--sf-fh)", fontSize: 18 }}>{content.campaign.title}: {content.campaign.percent_off}% off everything</b>{content.campaign.body && <p className="sf-muted" style={{ fontSize: 14 }}>{content.campaign.body}</p>}</div>}
         {content.items.length === 0 && <div className="sf-empty"><b>Nothing listed yet</b><p>Check back soon or send the seller a message.</p></div>}
-        {order.map((id) => <section key={id} id={`sf-${id}`} className="sf-sec" data-section={id}>{section[id]()}</section>)}
+        {order.map((id) => {
+          const cfg = d.sections.find((x) => x.id === id)!;
+          return <section key={id} id={`sf-${id}`} className={`sf-sec sf-tone-${cfg.tone} sf-w-${cfg.width}`} data-section={id}>{section[id]()}</section>;
+        })}
       </div>
       {fx("page", "front")}
     </div>

@@ -69,12 +69,30 @@ export type EffectLayer = {
   id: string; asset: string; mediaId?: string | null; scope: "hero" | "page"; anchor: Anchor; x: number; y: number;
   size: number; opacity: number; speed: number; direction: number; density: number; color?: string | null; layer: "back" | "front";
 };
+export const BACKGROUNDS = ["none", "gradient", "dots", "grid", "grain", "mesh", "spotlight"] as const;
+export const BACKGROUND_LABEL: Record<(typeof BACKGROUNDS)[number], string> = { none: "Plain", gradient: "Soft gradient", dots: "Dots", grid: "Grid", grain: "Grain", mesh: "Colour mesh", spotlight: "Spotlight" };
+export const TRANSITIONS = ["none", "fade", "rise", "cinema"] as const;
+export const TRANSITION_LABEL: Record<(typeof TRANSITIONS)[number], string> = { none: "None", fade: "Fade in", rise: "Rise up", cinema: "Cinematic wipe" };
+export const PRODUCT_LAYOUTS = ["grid", "list", "carousel", "spotlight"] as const;
+export const PRODUCT_LAYOUT_LABEL: Record<(typeof PRODUCT_LAYOUTS)[number], string> = { grid: "Grid", list: "List", carousel: "Carousel", spotlight: "Spotlight" };
+export const NAV_STYLES = ["bar", "pills", "underline", "floating"] as const;
+export const NAV_LABEL: Record<(typeof NAV_STYLES)[number], string> = { bar: "Bar", pills: "Pills", underline: "Underline", floating: "Floating" };
+export type StyleOptions = {
+  background: (typeof BACKGROUNDS)[number]; transition: (typeof TRANSITIONS)[number];
+  hero: HeroStyle | null; card: CardStyle | null; productLayout: (typeof PRODUCT_LAYOUTS)[number];
+  nav: (typeof NAV_STYLES)[number]; navLabels: Partial<Record<SectionId, string>>;
+  headingCase: "normal" | "upper"; tracking: number; intensity: number;
+};
+export const DEFAULT_STYLE: StyleOptions = { background: "none", transition: "fade", hero: null, card: null, productLayout: "grid", nav: "bar", navLabels: {}, headingCase: "normal", tracking: 0, intensity: 1 };
+export type SectionSetting = { id: SectionId; visible: boolean; tone: "plain" | "surface" | "accent"; width: "normal" | "wide" | "narrow" };
+
 export type Design = {
   v: 1; template: string; colors: Colors; fonts: { heading: FontId; body: FontId }; typeScale: number; button: ButtonStyle;
   hero: { mediaId: string | null; height: "sm" | "md" | "lg"; position: "top" | "center" | "bottom"; overlay: number; overlayColor: string; opacity: number; parallax: boolean };
   products: { columns: 2 | 3 | 4; showStock: boolean; showRating: boolean };
-  sections: { id: SectionId; visible: boolean }[];
+  sections: SectionSetting[];
   effects: EffectLayer[];
+  style: StyleOptions;
 };
 export type TemplateConfig = { hero: HeroStyle; card: CardStyle; fonts: { heading: FontId; body: FontId }; colors: Colors; button: ButtonStyle; columns: 2 | 3 | 4; effects: Partial<EffectLayer>[] };
 export type Template = {
@@ -93,8 +111,10 @@ export function designFromTemplate(t: Pick<Template, "slug" | "config">, keep?: 
     v: 1, template: t.slug, colors: { ...t.config.colors }, fonts: { ...t.config.fonts }, typeScale: 1, button: t.config.button,
     hero: keep?.hero ?? { mediaId: null, height: "md", position: "center", overlay: 35, overlayColor: "#000000", opacity: 100, parallax: false },
     products: keep?.products ?? { columns: t.config.columns, showStock: true, showRating: true },
-    sections: keep?.sections ?? SECTION_IDS.map((id) => ({ id, visible: true })),
+    sections: keep?.sections ?? SECTION_IDS.map((id) => ({ id, visible: true, tone: "plain" as const, width: "normal" as const })),
     effects: t.config.effects.map((e) => layer(e.asset!, e)),
+    // Layout and motion choices carry over; the hero and card overrides reset to the new template's own.
+    style: { ...DEFAULT_STYLE, ...(keep?.style ?? {}), hero: null, card: null },
   };
 }
 
@@ -183,7 +203,7 @@ export const TEMPLATES: Template[] = GROUPS.flatMap((g, gi) => g.rows.map(([slug
 export const DEFAULT_TEMPLATE = "campus-classic";
 
 export type EffectDef = {
-  slug: string; name: string; description: string; category: string; renderer: "css" | "canvas" | "three" | "lottie"; min_plan_code: string;
+  slug: string; name: string; description: string; category: string; renderer: "css" | "canvas" | "three" | "lottie" | "rive"; min_plan_code: string;
   params_schema: { color?: boolean; direction?: boolean; density?: boolean }; sort: number;
   id?: string; asset_path?: string | null; is_active?: boolean; preview_path?: string | null;
 };
@@ -197,7 +217,7 @@ export const EFFECTS: EffectDef[] = [
   E("shine-sweep", "Shine sweep", "Professional", "css", "k-leg", "A band of light crossing every few seconds.", {}),
   E("scanlines", "Scanlines", "Gaming", "css", "no-dulling", "Old-screen lines rolling down, like a paused anime frame.", {}),
   E("rain", "Rain", "Anime", "canvas", "no-dulling", "Slanted rain with a direction you choose.", { color: true, direction: true, density: true }),
-  E("clouds", "Drifting clouds", "Anime", "canvas", "no-dulling", "Painted clouds sliding across the sky.", { color: true, density: true }),
+  E("clouds", "Drifting clouds", "Anime", "canvas", "k-leg", "Painted clouds sliding across the sky.", { color: true, density: true }),
   E("starfield", "Starfield", "Anime", "canvas", "no-dulling", "Twinkling stars with the odd shooting star.", { color: true, density: true }),
   E("neon-skyline", "Neon skyline", "Cyberpunk", "canvas", "no-dulling", "A city silhouette with windows that flicker on and off.", { color: true }),
   E("petals", "Falling petals", "Anime", "canvas", "no-dulling", "Petals turning as they fall on the wind.", { color: true, direction: true, density: true }),
@@ -214,6 +234,7 @@ export const EFFECTS: EffectDef[] = [
   E("orbit-crystal", "Orbit crystal (3D)", "Futuristic", "three", "odogwu", "A wireframe crystal turning in 3D. Desktop only.", { color: true }),
   E("particle-wave", "Particle wave (3D)", "Gaming", "three", "odogwu", "A rolling field of 3D points. Desktop only.", { color: true }),
   E("my-lottie", "Your own Lottie animation", "Professional", "lottie", "odogwu", "Play a Lottie file you uploaded.", {}),
+  E("my-rive", "Your own Rive animation", "Professional", "rive", "odogwu", "Play a Rive file you uploaded.", {}),
 ].map((e, i) => ({ ...e, sort: i }));
 export const EFFECT_CATEGORIES = ["Anime", "Gaming", "Cyberpunk", "Luxury", "Futuristic", "Minimalist", "Nature", "Abstract", "Streetwear", "Technology", "Cinematic", "Professional"] as const;
 

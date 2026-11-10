@@ -1,26 +1,36 @@
 import { asSystem, type Db } from "./db";
 import { notify } from "./notify";
 import { DEFAULT_TEMPLATE, designFromTemplate, type Design, type EffectDef, type Template } from "./storefront-catalog";
-import { resolveDesign, type Access, type Catalog, type MediaItem, type Resolved } from "./storefront-access";
+import { resolveDesign, type Access, type Catalog, type MediaItem, type Resolved, featuresFor, type PlanFeature } from "./storefront-access";
 import { designSchema } from "./storefront-design";
 import { mediaUrl } from "./storefront-media";
 
 export async function loadCatalog(db: Db): Promise<Catalog> {
-  const [templates, assets, plans] = await Promise.all([
+  const [templates, assets, plans, features] = await Promise.all([
     db.rows<Template>("select * from storefront_templates order by sort, name"),
     db.rows<EffectDef>("select * from animation_assets order by sort, name"),
     db.rows("select code, name, customization_level from subscription_plans"),
+    db.rows<PlanFeature>("select * from plan_features order by sort"),
   ]);
   return {
-    templates, assets,
+    templates, assets, features,
     ranks: Object.fromEntries(plans.map((p) => [p.code, p.customization_level])),
     planNames: Object.fromEntries(plans.map((p) => [p.code, p.name])),
   };
 }
 
 export async function accessFor(db: Db, ownerId: string): Promise<Access> {
-  const p = await db.one("select code, name, customization_level, analytics_level from effective_plan($1)", [ownerId]);
-  return { level: p?.customization_level ?? 0, analyticsLevel: p?.analytics_level ?? 0, code: p?.code ?? "k-leg", name: p?.name ?? "K-Leg" };
+  const [p, features, plans] = await Promise.all([
+    db.one("select code, name, customization_level, analytics_level, effect_layers, storefront_limit from effective_plan($1)", [ownerId]),
+    db.rows<PlanFeature>("select key, min_plan_code from plan_features"),
+    db.rows("select code, customization_level from subscription_plans"),
+  ]);
+  const level = p?.customization_level ?? 0;
+  return {
+    level, analyticsLevel: p?.analytics_level ?? 0, code: p?.code ?? "k-leg", name: p?.name ?? "K-Leg",
+    layers: p?.effect_layers ?? 2, storefronts: p?.storefront_limit ?? 1,
+    features: featuresFor({ features, ranks: Object.fromEntries(plans.map((x) => [x.code, x.customization_level])) }, level),
+  };
 }
 
 export const toMediaItem = (m: any): MediaItem => ({
@@ -139,4 +149,28 @@ export async function syncAllDowngrades() {
   let flagged = 0;
   for (const r of rows) if ((await syncDowngrade(r.storefront_id)).length) flagged++;
   return flagged;
+}
+
+/**
+ * Tells sellers once when a plan change pauses some of their storefronts, and clears the flag when they're
+ * live again. Visibility itself is decided live in the database, so this only sends the notices.
+ */
+export async function syncStoreLimits(ownerId?: string): Promise<number> {
+  return asSystem(async (db) => {
+    const rows = await db.rows<{ id: string; owner_id: string; name: string; live: boolean; notified: boolean }>(
+      `select id, owner_id, name, app_store_within_plan(id) live, paused_notified_at is not null notified from storefronts
+       where ($1::uuid is null or owner_id=$1) and owner_id in (select owner_id from storefronts group by owner_id having count(*) > 1)`, [ownerId ?? null]);
+    const newly = rows.filter((r) => !r.live && !r.notified);
+    for (const owner of new Set(newly.map((r) => r.owner_id))) {
+      const names = newly.filter((r) => r.owner_id === owner).map((r) => r.name);
+      const plan = await db.one("select name, storefront_limit from effective_plan($1)", [owner]);
+      await notify(db, owner, `${names.length} storefront${names.length > 1 ? "s" : ""} paused`,
+        `Your ${plan.name} plan includes ${plan.storefront_limit} storefront${plan.storefront_limit > 1 ? "s" : ""}, so ${names.join(", ")} ${names.length > 1 ? "are" : "is"} hidden from buyers for now. Nothing was deleted. Pick which stores stay live, or upgrade to bring them back.`,
+        "/seller/storefront/stores");
+    }
+    if (newly.length) await db.run("update storefronts set paused_notified_at=now() where id = any($1)", [newly.map((r) => r.id)]);
+    const back = rows.filter((r) => r.live && r.notified).map((r) => r.id);
+    if (back.length) await db.run("update storefronts set paused_notified_at=null where id = any($1)", [back]);
+    return newly.length;
+  });
 }

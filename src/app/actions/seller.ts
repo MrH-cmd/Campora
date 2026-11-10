@@ -1,4 +1,5 @@
 "use server";
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
@@ -14,15 +15,67 @@ import { getSetting } from "@/lib/settings";
 import { appUrl } from "@/lib/email";
 import { emailUser, notify } from "@/lib/notify";
 import { saveImage } from "@/lib/storage";
+import { syncStoreLimits } from "@/lib/storefront";
 
+const STORE_COOKIE = "vybe_store";
+/**
+ * The signed-in seller, all their storefronts and the one they're working on. Every seller page and action
+ * acts on `store`, picked from a cookie and always checked against the stores this seller really owns.
+ */
 export async function sellerContext() {
   const user = await requireSeller();
-  const data = await asUser(user.id, async (db) => ({
-    store: await db.one("select * from storefronts where owner_id=$1", [user.id]),
-    plan: await db.one("select * from effective_plan($1)", [user.id]),
-  }));
+  const picked = (await cookies()).get(STORE_COOKIE)?.value;
+  const data = await asUser(user.id, async (db) => {
+    const [stores, plan] = await Promise.all([
+      db.rows("select s.*, app_store_within_plan(s.id) as within_plan from storefronts s where owner_id=$1 order by position, created_at, id", [user.id]),
+      db.one("select * from effective_plan($1)", [user.id]),
+    ]);
+    return { stores, plan, store: stores.find((s) => s.id === picked) ?? stores[0] ?? null };
+  });
   return { user, ...data };
 }
+
+/** Switches which storefront the seller dashboard works on. */
+export const switchStore = action(z.object({ storefront_id: id, back: z.string().optional() }), async (d) => {
+  const { stores } = await sellerContext();
+  if (!stores.some((s) => s.id === d.storefront_id)) throw new ActionError("That storefront isn't yours.");
+  (await cookies()).set(STORE_COOKIE, d.storefront_id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 180 });
+  revalidatePath("/seller", "layout");
+  return "Switched storefront.";
+});
+
+/** Opens another storefront, within the plan's allowance. The database refuses it too if the plan is full. */
+export const createStorefront = action(z.object({ name: text(2, 80, "Business name"), tagline: optional(120) }), async (d) => {
+  const { user, stores, plan } = await sellerContext();
+  if (user.status !== "active") throw new ActionError("Your account is restricted, so selling is paused.");
+  if (!user.university_id) throw new ActionError("Choose your university on your account page first.");
+  if (stores.length >= plan.storefront_limit)
+    throw new ActionError(`Your ${plan.name} plan includes ${plan.storefront_limit} storefront${plan.storefront_limit > 1 ? "s" : ""}. Upgrade to open more.`);
+  const slug = `${slugify(d.name)}-${randomBytes(2).toString("hex")}`;
+  const row = await asUser(user.id, (db) => db.one<{ id: string }>(
+    "insert into storefronts(owner_id,university_id,slug,name,tagline) values ($1,$2,$3,$4,$5) returning id",
+    [user.id, user.university_id, slug, d.name, d.tagline ?? null])).catch((e) => {
+      if (String(e.message).includes("STORE_LIMIT")) throw new ActionError("Your plan's storefront allowance is full.");
+      throw e;
+    });
+  (await cookies()).set(STORE_COOKIE, row!.id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 180 });
+  revalidatePath("/seller", "layout");
+  return `${d.name} is open. You're now working on it.`;
+});
+
+/** Moves a storefront up or down. Order decides which stores stay live if a plan allows fewer. */
+export const moveStorefront = action(z.object({ storefront_id: id, dir: z.enum(["up", "down", "top"]) }), async (d) => {
+  const { user, stores } = await sellerContext();
+  const i = stores.findIndex((s) => s.id === d.storefront_id);
+  if (i < 0) throw new ActionError("That storefront isn't yours.");
+  const order = stores.map((s) => s.id);
+  const [it] = order.splice(i, 1);
+  order.splice(d.dir === "top" ? 0 : d.dir === "up" ? Math.max(0, i - 1) : Math.min(order.length, i + 1), 0, it);
+  await asUser(user.id, async (db) => { for (const [n, sid] of order.entries()) await db.run("update storefronts set position=$2 where id=$1", [sid, n]); });
+  await syncStoreLimits(user.id);
+  revalidatePath("/seller", "layout");
+  return "Order saved.";
+});
 
 async function activeStore() {
   const ctx = await sellerContext();
@@ -56,8 +109,8 @@ export const saveStorefront = action(z.object({
     }
     await db.run(
       `update storefronts set name=$2,tagline=$3,description=$4,contact_phone=$5,contact_whatsapp=$6,contact_email=$7,campus_location=$8,
-         logo_path=coalesce($9,logo_path),cover_path=coalesce($10,cover_path) where owner_id=$1`,
-      [user.id, d.name, d.tagline, d.description, d.contact_phone, d.contact_whatsapp, d.contact_email, d.campus_location, logoPath, coverPath]);
+         logo_path=coalesce($9,logo_path),cover_path=coalesce($10,cover_path) where owner_id=$1 and (id=$11 or $11::uuid is null)`,
+      [user.id, d.name, d.tagline, d.description, d.contact_phone, d.contact_whatsapp, d.contact_email, d.campus_location, logoPath, coverPath, store?.id ?? null]);
   });
   revalidatePath("/seller");
   return "Storefront saved.";

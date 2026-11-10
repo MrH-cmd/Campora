@@ -7,7 +7,7 @@ import { ActionError, rateLimit } from "@/lib/auth";
 import { asSystem, asUser, type Db } from "@/lib/db";
 import { saveImage } from "@/lib/storage";
 import { designFromTemplate, type Design } from "@/lib/storefront-catalog";
-import { canUseEffect, canUseMedia, canUseTemplate, limits, planName, planForLevel, violations, type Violation } from "@/lib/storefront-access";
+import { canUseEffect, canUseMedia, canUseTemplate, featurePlan, limits, planName, violations, type Violation } from "@/lib/storefront-access";
 import { DesignError, parseDesign, SOCIAL_HOSTS, socialUrl, type Social } from "@/lib/storefront-design";
 import { MEDIA_LIMITS, checkLottie, checkMedia, deleteStored, fetchStored, inspectMedia, signedUpload, storageConfigured } from "@/lib/storefront-media";
 import { accessFor, loadCatalog, loadMedia, mediaMap, readDesign, syncDowngrade } from "@/lib/storefront";
@@ -65,12 +65,12 @@ export const chooseTemplate = action(z.object({ slug: z.string().regex(/^[a-z0-9
   // Banner, section order and product display carry over. Colours, fonts and effects come from the template.
   const next = designFromTemplate(t, ctx.draft);
   next.effects = next.effects.filter((e) => ctx.catalog.assets.some((a) => a.slug === e.asset && canUseEffect(ctx.catalog, ctx.access, a)))
-    .slice(0, limits(ctx.access.level).layers);
+    .slice(0, limits(ctx.access).layers);
   if (next.hero.mediaId) {
     const m = ctx.media.find((x) => x.id === next.hero.mediaId);
     if (!m || !canUseMedia(ctx.access, m.kind)) next.hero = { ...next.hero, mediaId: null };
   }
-  if (next.hero.parallax && ctx.access.level < 2) next.hero = { ...next.hero, parallax: false };
+  if (next.hero.parallax && !ctx.access.features.parallax) next.hero = { ...next.hero, parallax: false };
   await writeDraft(ctx, next);
   revalidatePath("/seller/storefront");
   return `${t.name} applied to your draft. Open the editor to fine-tune it, then publish.`;
@@ -168,11 +168,15 @@ export async function startMediaUpload(input: { kind: "gif" | "video"; ext: stri
     const p = z.object({ kind: z.enum(["gif", "video"]), ext: z.enum(["gif", "mp4", "webm"]), bytes: z.number().int().positive(), rights: z.literal(true, { message: "Confirm you own the rights to this artwork." }) }).safeParse(input);
     if (!p.success) return { error: p.error.issues[0]?.message ?? "That file can't be used." };
     const { kind, ext, bytes } = p.data;
-    if (!canUseMedia(ctx.access, kind)) return { error: `GIF and video banners need the ${planName(ctx.catalog, planForLevel(ctx.catalog, 1))} plan.` };
+    const lim = limits(ctx.access);
+    if (kind === "video" && !lim.video) return { error: `Video banners need the ${planName(ctx.catalog, featurePlan(ctx.catalog, "video_banner"))} plan.` };
+    if (kind === "gif" && !lim.gif) return { error: `GIF banners need the ${planName(ctx.catalog, featurePlan(ctx.catalog, "gif_banner"))} plan.` };
     if (!storageConfigured()) return { error: "GIF and video banners aren't switched on for this site yet. Image banners still work." };
     if ((kind === "gif") !== (ext === "gif")) return { error: kind === "gif" ? "Upload a .gif file." : "Upload an MP4 or WebM video." };
-    const limit = kind === "gif" ? MEDIA_LIMITS.gif : MEDIA_LIMITS.video;
-    if (bytes > limit) return { error: `${kind === "gif" ? "GIFs" : "Videos"} must be ${limit / 1024 / 1024} MB or smaller.` };
+    const limit = kind === "gif" ? lim.gifBytes : MEDIA_LIMITS.video;
+    if (bytes > limit) return { error: kind === "gif" && limit < MEDIA_LIMITS.gif
+      ? `GIFs on your plan can be up to ${limit / 1024 / 1024} MB. ${planName(ctx.catalog, featurePlan(ctx.catalog, "video_banner"))} allows ${MEDIA_LIMITS.gif / 1024 / 1024} MB.`
+      : `${kind === "gif" ? "GIFs" : "Videos"} must be ${limit / 1024 / 1024} MB or smaller.` };
     await mediaSlot(ctx);
     const up = await signedUpload(ctx.store.id, ext);
     const row = await asSystem((db) => insertMedia(db, { storefront_id: ctx.store.id, kind, path: up.path, mime: "pending", bytes: 0, rights_confirmed: true, status: "pending" }));
@@ -191,6 +195,7 @@ export async function finishMediaUpload(mediaId: string) {
     try {
       if (!data) throw new ActionError("The upload didn't arrive. Try again.");
       const info = checkMedia(m.kind, inspectMedia(data), data.length);
+      if (!canUseMedia(ctx.access, m.kind, data.length)) throw new ActionError(`That ${m.kind === "gif" ? "GIF" : "file"} is bigger than your plan allows.`);
       await asSystem((db) => db.run(
         "update storefront_media set status='active', mime=$2, bytes=$3, width=$4, height=$5, duration_ms=$6 where id=$1",
         [m.id, info.mime, data.length, info.width ?? null, info.height ?? null, info.durationMs ?? null]));
@@ -218,7 +223,7 @@ export const uploadPoster = action(z.object({ media_id: id }), async (d, form) =
 
 export const uploadLottie = action(z.object({ rights }), async (_d, form) => {
   const ctx = await builder();
-  if (ctx.access.level < 2) throw new ActionError(`Lottie animations need the ${planName(ctx.catalog, planForLevel(ctx.catalog, 2))} plan.`);
+  if (!ctx.access.features.lottie) throw new ActionError(`Lottie animations need the ${planName(ctx.catalog, featurePlan(ctx.catalog, "lottie"))} plan.`);
   await mediaSlot(ctx);
   const file = form.get("file");
   if (!(file instanceof File) || !file.size) throw new ActionError("Choose a Lottie .json file.");
@@ -232,6 +237,26 @@ export const uploadLottie = action(z.object({ rights }), async (_d, form) => {
   });
   revalidatePath("/seller/storefront/media");
   return "Lottie animation uploaded. Add the \"Your own Lottie animation\" effect in the editor to use it.";
+});
+
+const RIVE_BYTES = 2 * 1024 * 1024;
+export const uploadRive = action(z.object({ rights }), async (_d, form) => {
+  const ctx = await builder();
+  if (!ctx.access.features.rive) throw new ActionError(`Rive animations need the ${planName(ctx.catalog, featurePlan(ctx.catalog, "rive"))} plan.`);
+  await mediaSlot(ctx);
+  const file = form.get("file");
+  if (!(file instanceof File) || !file.size) throw new ActionError("Choose a Rive .riv file.");
+  if (file.size > RIVE_BYTES) throw new ActionError("Rive files must be 2 MB or smaller.");
+  const data = Buffer.from(await file.arrayBuffer());
+  // Real Rive files start with the bytes "RIVE"; anything else is refused whatever its name.
+  if (data.subarray(0, 4).toString("latin1") !== "RIVE") throw new ActionError("That isn't a Rive .riv file. Export it from Rive as a .riv file.");
+  const path = `public/rive/${randomUUID()}.riv`;
+  await asSystem(async (db) => {
+    await db.run("insert into file_blobs(path, content_type, data, is_private, owner_id) values ($1,'application/octet-stream',$2,false,$3)", [path, data, ctx.user.id]);
+    await insertMedia(db, { storefront_id: ctx.store.id, kind: "rive", path, mime: "application/octet-stream", bytes: file.size, rights_confirmed: true });
+  });
+  revalidatePath("/seller/storefront/media");
+  return "Rive animation uploaded. Add the \"Your own Rive animation\" effect in the editor to use it.";
 });
 
 export const removeMedia = action(z.object({ media_id: id }), async (d) => {

@@ -15,7 +15,7 @@ export function TemplateThumb({ t, assets, animate }: { t: Template; assets: FxA
     <div style={{ position: "relative", height: h, overflow: "hidden", display: "grid", gridTemplateColumns: hero === "split" || hero === "arch" ? "1fr 1fr" : "1fr", gap: 4, padding: hero === "frame" ? 4 : 0 }}>
       {(hero === "split") && <div style={{ padding: 6 }}><Lines c={c.text} f={fh} /></div>}
       <div style={{ background: `linear-gradient(135deg, ${c.accent}, ${c.surface})`, borderRadius: hero === "arch" ? "999px 999px 4px 4px" : hero === "frame" ? 6 : 0, position: "relative", overflow: "hidden" }}>
-        {animate && <EffectLayers zone="back" assets={assets} lottie={{}} accent={c.accent} layers={t.config.effects.filter((e) => assets[e.asset!]?.renderer !== "three" && assets[e.asset!]?.renderer !== "lottie").map((e, index) => ({ l: layer(e.asset!, { ...e, id: `${t.slug}${index}`, size: 100, anchor: "center", x: 0, y: 0 }), index }))} />}
+        {animate && <EffectLayers zone="back" assets={assets} lottie={{}} accent={c.accent} layers={t.config.effects.filter((e) => assets[e.asset!]?.renderer !== "three" && assets[e.asset!]?.renderer !== "lottie" && assets[e.asset!]?.renderer !== "rive").map((e, index) => ({ l: layer(e.asset!, { ...e, id: `${t.slug}${index}`, size: 100, anchor: "center", x: 0, y: 0 }), index }))} />}
       </div>
       {hero === "arch" && <div style={{ padding: 6 }}><Lines c={c.text} f={fh} /></div>}
       {hero !== "split" && hero !== "arch" && <div style={{ position: "absolute", left: 8, bottom: 6 }}><Lines c={hero === "fullbleed" ? "#fff" : c.text} f={fh} /></div>}

@@ -8,7 +8,8 @@ import { asSystem, type Db } from "@/lib/db";
 import { logAdmin, notify } from "@/lib/notify";
 import { saveImage } from "@/lib/storage";
 import { ARCHETYPES, BUTTONS, CARDS, EFFECT_CATEGORIES, FONT_IDS, HEROES, PALETTES } from "@/lib/storefront-catalog";
-import { syncAllDowngrades, syncDowngrade } from "@/lib/storefront";
+import { syncAllDowngrades, syncDowngrade, syncStoreLimits } from "@/lib/storefront";
+import { FEATURE_KEYS } from "@/lib/storefront-access";
 import { checkLottie, deleteStored } from "@/lib/storefront-media";
 
 /** Authorise on the server, do the work, write the audit log, in one transaction. */
@@ -117,4 +118,20 @@ export const saveEffect = admin(z.object({
      values ($1,$2,$3,$4,'lottie',$5,'{}',$6,$7,$8,(select coalesce(max(sort),0)+1 from animation_assets))`,
     [d.slug, d.name, d.description ?? "", d.category, d.min_plan_code, path, p, !!d.is_active]).catch((e) => { if (String(e.message).includes("unique")) throw new ActionError("That slug is taken."); throw e; });
   return "Effect created.";
+});
+
+/** Per-plan numbers for the storefront builder. Stores and designs over a new, lower limit fall back safely. */
+export const savePlanNumbers = admin(z.object({
+  code: plan, storefront_limit: z.coerce.number().int().min(1).max(50), effect_layers: z.coerce.number().int().min(0).max(6),
+}), "plan.numbers", "subscription_plan", async (d, db) => {
+  const r = await db.one("update subscription_plans set storefront_limit=$2, effect_layers=$3 where code=$1 returning name", [d.code, d.storefront_limit, d.effect_layers]);
+  if (!r) throw new ActionError("Plan not found.");
+  return { message: `${r.name} saved: ${d.storefront_limit} storefront${d.storefront_limit > 1 ? "s" : ""}, ${d.effect_layers} effect layers.`, after: async () => { await syncAllDowngrades(); await syncStoreLimits(); } };
+});
+
+/** Which plan unlocks a storefront feature. Takes effect everywhere at once: editor, publishing and public pages. */
+export const saveFeatureRule = admin(z.object({ key: z.enum(FEATURE_KEYS), min_plan_code: plan }), "plan.feature", "plan_feature", async (d, db) => {
+  const r = await db.one("update plan_features set min_plan_code=$2 where key=$1 returning label", [d.key, d.min_plan_code]);
+  if (!r) throw new ActionError("Feature not found.");
+  return { message: `${r.label} now starts on ${({ "k-leg": "K-Leg", "no-dulling": "No Dulling", odogwu: "Odogwu" } as const)[d.min_plan_code]}.`, after: syncAllDowngrades };
 });

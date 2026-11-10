@@ -1,5 +1,6 @@
 import { cancelDowngrade, choosePlan, sellerContext } from "@/app/actions/seller";
 import { ActionButton, Field, Form, Submit } from "@/components/form";
+import { PlanComparison } from "@/components/plan-comparison";
 import { Badge, Card, Empty, PageHead, statusTone, Table, Td } from "@/components/ui";
 import { asUser } from "@/lib/db";
 import { naira, shortDate } from "@/lib/format";
@@ -47,6 +48,8 @@ export default async function Billing() {
       {d.txns.length === 0 ? <Empty title="No payments yet" /> : (
         <Table head={["Date", "For", "Amount", "Provider", "Status"]}>{d.txns.map((t) => <tr key={t.id}><Td>{shortDate(t.created_at)}</Td><Td className="capitalize">{t.purpose}</Td><Td>{naira(t.amount_kobo)}</Td><Td className="capitalize">{t.provider}</Td><Td><Badge tone={statusTone(t.status)}>{t.status}</Badge></Td></tr>)}</Table>
       )}
+      <h2 className="mt-8 mb-3 text-xl font-bold">Compare plans</h2>
+      <PlanComparison current={plan.code} />
     </>
   );
 }

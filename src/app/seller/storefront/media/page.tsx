@@ -1,8 +1,8 @@
-import { removeMedia, uploadBannerImage, uploadLottie, uploadPoster } from "@/app/actions/storefront";
+import { removeMedia, uploadBannerImage, uploadLottie, uploadPoster, uploadRive } from "@/app/actions/storefront";
 import { ActionButton, Form, Submit } from "@/components/form";
 import { AnimatedUpload } from "@/components/storefront/media-upload";
 import { Badge, Card, Empty, PageHead } from "@/components/ui";
-import { limits, planForLevel, planName } from "@/lib/storefront-access";
+import { featurePlan, limits, planName } from "@/lib/storefront-access";
 import { loadBuilder } from "../data";
 import { StoreTabs } from "../tabs";
 
@@ -14,16 +14,17 @@ const Rights = () => (
 
 export default async function Media() {
   const b = await loadBuilder();
-  const lim = limits(b.access.level);
+  const lim = limits(b.access);
   const inUse = new Set([b.published?.hero.mediaId, b.draft.hero.mediaId, ...b.draft.effects.map((e) => e.mediaId), ...(b.published?.effects.map((e) => e.mediaId) ?? [])].filter(Boolean));
   const items = b.media.filter((m) => m.status !== "removed");
-  const animReason = !lim.animatedBanner ? `GIF and video banners come with ${planName(b.catalog, planForLevel(b.catalog, 1))} and ${planName(b.catalog, planForLevel(b.catalog, 2))}.`
+  const P = (k: Parameters<typeof featurePlan>[1]) => planName(b.catalog, featurePlan(b.catalog, k));
+  const animReason = !lim.animatedBanner ? `GIF banners come with ${P("gif_banner")}, and video banners with ${P("video_banner")}.`
     : !b.storage ? "GIF and video uploads aren't switched on for this site yet (media storage isn't connected). Image banners work now." : null;
   return (
     <div>
       <PageHead title="My Storefront" sub="Upload banners here, then choose one in the editor." />
       <StoreTabs on="/media" />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <h2 className="font-bold">Image banner</h2>
           <p className="mt-1 text-sm text-mute">JPG, PNG or WebP, up to 5 MB. Wide images (about 1600 by 600) look best.</p>
@@ -33,18 +34,28 @@ export default async function Media() {
           </Form>
         </Card>
         <Card>
-          <h2 className="flex items-center gap-2 font-bold">GIF or video banner{!lim.animatedBanner && <Badge>{planName(b.catalog, planForLevel(b.catalog, 1))}</Badge>}</h2>
-          <div className="mt-3"><AnimatedUpload enabled={!animReason} reason={animReason} /></div>
+          <h2 className="flex items-center gap-2 font-bold">{lim.video ? "GIF or video banner" : "GIF banner"}{!lim.video && <Badge>Video: {P("video_banner")}</Badge>}</h2>
+          <div className="mt-3"><AnimatedUpload enabled={!animReason} reason={animReason} video={lim.video} gifMb={lim.gifBytes / 1024 / 1024} /></div>
         </Card>
         <Card>
-          <h2 className="flex items-center gap-2 font-bold">Lottie animation{!lim.lottie && <Badge>{planName(b.catalog, planForLevel(b.catalog, 2))}</Badge>}</h2>
+          <h2 className="flex items-center gap-2 font-bold">Lottie animation{!lim.lottie && <Badge>{P("lottie")}</Badge>}</h2>
           {lim.lottie ? (
             <Form action={uploadLottie} resetOnSuccess className="mt-3 space-y-2">
               <p className="text-sm text-mute">A Lottie .json file up to 1 MB, exported without expressions.</p>
               <input type="file" name="file" accept=".json,application/json" required aria-label="Lottie file" className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-palm file:px-3 file:py-1.5 file:font-semibold file:text-white" />
               <Rights /><Submit size="sm">Upload Lottie</Submit>
             </Form>
-          ) : <p className="mt-1 text-sm text-mute">Play your own Lottie animations as effect layers on {planName(b.catalog, planForLevel(b.catalog, 2))}.</p>}
+          ) : <p className="mt-1 text-sm text-mute">Play your own Lottie animations as effect layers on {P("lottie")}.</p>}
+        </Card>
+        <Card>
+          <h2 className="flex items-center gap-2 font-bold">Rive animation{!lim.rive && <Badge>{P("rive")}</Badge>}</h2>
+          {lim.rive ? (
+            <Form action={uploadRive} resetOnSuccess className="mt-3 space-y-2">
+              <p className="text-sm text-mute">A Rive .riv file up to 2 MB. Interactive Rive animations play as effect layers.</p>
+              <input type="file" name="file" accept=".riv" required aria-label="Rive file" className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-palm file:px-3 file:py-1.5 file:font-semibold file:text-white" />
+              <Rights /><Submit size="sm">Upload Rive</Submit>
+            </Form>
+          ) : <p className="mt-1 text-sm text-mute">Play your own Rive animations as effect layers on {P("rive")}.</p>}
         </Card>
       </div>
 
@@ -57,12 +68,12 @@ export default async function Media() {
                 {m.status === "pending" ? <p className="grid h-full place-items-center text-sm text-mute">Upload didn't finish</p>
                   : m.kind === "video" ? <video src={m.url} poster={m.posterUrl ?? undefined} muted loop playsInline controls preload="metadata" className="size-full object-cover" />
                   // eslint-disable-next-line @next/next/no-img-element
-                  : m.kind === "lottie" ? <p className="grid h-full place-items-center text-sm text-mute">Lottie animation, plays in the editor preview</p> : <img src={m.url} alt="" className="size-full object-cover" loading="lazy" />}
+                  : m.kind === "lottie" || m.kind === "rive" ? <p className="grid h-full place-items-center text-sm text-mute">{m.kind === "rive" ? "Rive" : "Lottie"} animation, plays in the editor preview</p> : <img src={m.url} alt="" className="size-full object-cover" loading="lazy" />}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge>{m.kind}</Badge><span className="text-mute">{kb(m.bytes)}{m.duration_ms ? `, ${Math.round(m.duration_ms / 100) / 10}s` : ""}</span>
                 {inUse.has(m.id) && <Badge tone="green">In use</Badge>}
-                {m.kind !== "image" && m.kind !== "lottie" && !lim.animatedBanner && <Badge tone="amber">Plan doesn't cover</Badge>}
+                {((m.kind === "video" && !lim.video) || (m.kind === "gif" && (!lim.gif || (m.bytes ?? 0) > lim.gifBytes))) && <Badge tone="amber">Plan doesn&apos;t cover</Badge>}
               </div>
               {(m.kind === "video" || m.kind === "gif") && m.status === "active" && (
                 <Form action={uploadPoster} resetOnSuccess className="space-y-1">

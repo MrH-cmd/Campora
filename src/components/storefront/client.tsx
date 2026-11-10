@@ -9,8 +9,29 @@ import { useMotionOk, useOnScreen } from "./effects";
 
 const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
 const beacon = (storefront_id: string, type: "visit" | "click") => {
-  try { fetch("/api/store/track", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ storefront_id, type }) }).catch(() => {}); } catch {}
+  try {
+    // Only the referring site's host and a mobile/desktop flag leave the browser, never the full address.
+    let ref = ""; try { ref = document.referrer ? new URL(document.referrer).hostname : ""; } catch {}
+    const device = window.matchMedia("(max-width: 767px), (pointer: coarse)").matches ? "mobile" : "desktop";
+    fetch("/api/store/track", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ storefront_id, type, ref, device }) }).catch(() => {});
+  } catch {}
 };
+
+/** Turns on scroll-in section animations once JavaScript runs, so sections are never hidden without it. */
+export function Reveal({ off }: { off?: boolean }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const ok = useMotionOk();
+  useEffect(() => {
+    const root = ref.current?.closest(".sf") as HTMLElement | null;
+    if (!root || off || !ok) return;
+    const secs = [...root.querySelectorAll<HTMLElement>(".sf-sec")];
+    root.dataset.reveal = "on";
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { (e.target as HTMLElement).dataset.in = "1"; io.unobserve(e.target); } }), { rootMargin: "0px 0px -8% 0px" });
+    secs.forEach((s) => io.observe(s));
+    return () => { io.disconnect(); delete root.dataset.reveal; secs.forEach((s) => delete s.dataset.in); };
+  }, [off, ok]);
+  return <span ref={ref} hidden />;
+}
 
 /** Records one real page view. Search-engine prefetches and server renders never reach this. */
 export function TrackVisit({ storefrontId }: { storefrontId: string }) {

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { logout } from "@/app/actions/auth";
 import { Logo } from "./ui";
 
-export function DashShell({ title, links, children }: { title: string; links: [string, string][]; children: ReactNode }) {
+export function DashShell({ title, links, children, top }: { title: string; links: [string, string][]; children: ReactNode; top?: ReactNode }) {
   const path = usePathname();
   const isOn = (h: string) => (links.some(([x]) => x !== h && x.startsWith(h) && path.startsWith(x)) ? false : h.split("/").length === 2 ? path === h : path.startsWith(h));
   return (
@@ -16,6 +16,7 @@ export function DashShell({ title, links, children }: { title: string; links: [s
           <Link href="/" aria-label="Back to Vybe Market"><Logo light /></Link>
           <p className="text-sm text-white/60 md:mt-1">{title}</p>
         </div>
+        {top}
         <nav aria-label={title} className="flex gap-1 overflow-x-auto px-3 pb-2 md:flex-col md:pb-4">
           {links.map(([h, l]) => {
             const on = isOn(h);
