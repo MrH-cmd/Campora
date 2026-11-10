@@ -3,7 +3,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { action, id, nairaAmount, optional, text } from "@/lib/action";
-import { ActionError, requireAdmin } from "@/lib/auth";
+import { ActionError, rateLimit, requireAdmin } from "@/lib/auth";
+import { verifyPassword } from "@/lib/auth-core";
 import { asSystem, type Db } from "@/lib/db";
 import { slugify, toKobo } from "@/lib/format";
 import { appUrl } from "@/lib/email";
@@ -19,7 +20,8 @@ function admin<S extends z.ZodType>(schema: S, name: string, fn: (d: z.output<S>
     const a = await requireAdmin();
     const message = await asSystem(async (db) => {
       const m = await fn(d, db, a.id);
-      await logAdmin(db, a.id, name, "platform", String((d as any).id ?? (d as any).user_id ?? ""), d as object);
+      const { password: _pw, ...meta } = d as Record<string, unknown>; // never store a typed password in the log
+      await logAdmin(db, a.id, name, "platform", String((d as any).id ?? (d as any).user_id ?? ""), meta);
       return m;
     });
     revalidatePath("/admin", "layout");
@@ -28,6 +30,31 @@ function admin<S extends z.ZodType>(schema: S, name: string, fn: (d: z.output<S>
 }
 
 const note = optional(400);
+
+/**
+ * Gives or removes admin access. Admins get every plan's features and the full admin dashboard,
+ * so granting it needs the acting admin's password, and nobody can change their own role.
+ */
+export const setUserRole = admin(z.object({ user_id: id, make: z.enum(["admin", "remove"]), password: optional(200) }), "user.role", async (d, db, me) => {
+  if (d.user_id === me) throw new ActionError("You can't change your own admin access.");
+  const u = await db.one("select id, full_name, role, status, deleted_at from users where id=$1", [d.user_id]);
+  if (!u || u.deleted_at) throw new ActionError("User not found.");
+  if (d.make === "admin") {
+    if (u.role === "admin") throw new ActionError(`${u.full_name} is already an admin.`);
+    if (u.status !== "active") throw new ActionError("Reinstate this account before making it an admin.");
+    await rateLimit(`grant-admin:${me}`, 10, 3600, db);
+    const self = await db.one("select password_hash from users where id=$1", [me]);
+    if (!d.password || !(await verifyPassword(d.password, self.password_hash))) throw new ActionError("Your password isn't right. Admin access wasn't given.");
+    await db.run("update users set role='admin' where id=$1", [u.id]);
+    await notify(db, u.id, "You're now a Vybe Market admin", "You can open the admin dashboard, and every seller plan feature is unlocked for you.", "/admin");
+    return `${u.full_name} is now an admin.`;
+  }
+  if (u.role !== "admin") throw new ActionError(`${u.full_name} isn't an admin.`);
+  const owns = await db.one("select 1 from storefronts where owner_id=$1", [u.id]);
+  await db.run("update users set role=$2 where id=$1", [u.id, owns ? "seller" : "customer"]);
+  await notify(db, u.id, "Your admin access was removed", owns ? "Your storefront stays, on whatever plan you've paid for." : null, "/account");
+  return `${u.full_name} is no longer an admin.`;
+});
 
 export const setUserStatus = admin(z.object({ user_id: id, status: z.enum(["active", "restricted", "suspended"]), reason: note }), "user.status", async (d, db, me) => {
   if (d.user_id === me) throw new ActionError("You can't change your own account status.");

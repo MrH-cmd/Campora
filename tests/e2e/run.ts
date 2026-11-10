@@ -501,6 +501,19 @@ const toast = (p: Page, text: string) => p.getByText(text).first().waitFor({ tim
     await anon.goto(`${BASE}/store/${chidi()}`); expect(await anon.locator(`.sf[data-template="${tpl}"]`).count() === 0, "locked template should fall back");
     await anon.locator(".sf[data-template]").first().waitFor();
   });
+  await step("admin makes another user an admin with their password, then removes it", async () => {
+    const who = await page(); await login(who, "bowl@campora.test");
+    expect((await who.request.get(`${BASE}/admin`)).status() === 403, "not admin yet");
+    await admin.bringToFront(); await admin.goto(`${BASE}/admin/users?q=bowl`); await admin.waitForTimeout(600);
+    await admin.locator('summary:has-text("Make admin")').click();
+    await admin.fill("[name=password]", "wrong-pass"); await admin.click('form:has([name=password]) button:has-text("Make admin")'); await toast(admin, "password isn't right");
+    await admin.fill("[name=password]", PW); await admin.click('form:has([name=password]) button:has-text("Make admin")'); await toast(admin, "is now an admin");
+    expect((await who.request.get(`${BASE}/admin`)).status() === 200, "new admin can open the dashboard");
+    await who.goto(`${BASE}/seller/storefront/designs`); await who.waitForTimeout(600);
+    expect(await who.locator("article[data-locked]").count() === 0, "new admin should see every template unlocked");
+    await admin.goto(`${BASE}/admin/users?role=admin`); await admin.locator('tr:has-text("bowl") button:has-text("Remove admin")').click(); await admin.click('button:has-text("Yes, continue")'); await toast(admin, "no longer an admin");
+    expect((await who.request.get(`${BASE}/admin`)).status() === 403, "removed admin still has access");
+  });
   await step("no uncaught browser errors in any journey", async () => expect(consoleErrors.length === 0, consoleErrors.slice(0, 5).join("\n")));
 
   await browser.close(); app.kill(); gw.kill();

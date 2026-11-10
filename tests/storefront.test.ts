@@ -292,6 +292,26 @@ describe("admins", () => {
   });
 });
 
+describe("granting admin", () => {
+  it("needs the acting admin's password, unlocks everything, is logged without the password, and can be removed", async () => {
+    const { setUserRole } = await import("@/app/actions/admin");
+    const target = seller2;
+    as = seller;
+    await expect(setUserRole({}, fd({ user_id: target.id, make: "admin", password: "campora-dev-1" }))).rejects.toThrow(/403/);
+    as = admin;
+    expect((await setUserRole({}, fd({ user_id: target.id, make: "admin", password: "wrong" }))).error).toMatch(/password isn't right/);
+    expect((await user(target.id)).role).toBe("seller");
+    expect((await setUserRole({}, fd({ user_id: target.id, make: "admin", password: "campora-dev-1" }))).ok).toBe(true);
+    expect((await user(target.id)).role).toBe("admin");
+    expect((await asSystem((db) => db.one("select code from effective_plan($1)", [target.id]))).code).toBe("odogwu");
+    const log = await asSystem((db) => db.one("select action, meta from admin_activity_logs order by created_at desc limit 1"));
+    expect(log.action).toBe("user.role"); expect(JSON.stringify(log.meta)).not.toContain("campora-dev-1");
+    expect((await setUserRole({}, fd({ user_id: admin.id, make: "remove" }))).error).toMatch(/your own/);
+    expect((await setUserRole({}, fd({ user_id: target.id, make: "remove" }))).ok).toBe(true);
+    expect((await user(target.id)).role).toBe("seller"); // owns a store, so goes back to seller
+  });
+});
+
 describe("resolve is pure", () => {
   it("never edits the design it's given", async () => {
     const c = await catalog(); const a = await asSystem((db) => accessFor(db, seller.id));
