@@ -16,11 +16,20 @@ export type Db = {
   run: (text: string, params?: unknown[]) => Promise<number>;
 };
 
-const wrap = (c: PoolClient): Db => ({
-  rows: async (t, p) => (await c.query(t, p as any[])).rows,
-  one: async (t, p) => (await c.query(t, p as any[])).rows[0] ?? null,
-  run: async (t, p) => (await c.query(t, p as any[])).rowCount ?? 0,
-});
+/** A transaction runs one query at a time, so parallel calls (Promise.all) are queued here in order. */
+const wrap = (c: PoolClient): Db => {
+  let last: Promise<unknown> = Promise.resolve();
+  const q = (t: string, p?: unknown[]) => {
+    const next = last.catch(() => {}).then(() => c.query(t, p as any[]));
+    last = next;
+    return next;
+  };
+  return {
+    rows: async (t, p) => (await q(t, p)).rows,
+    one: async (t, p) => (await q(t, p)).rows[0] ?? null,
+    run: async (t, p) => (await q(t, p)).rowCount ?? 0,
+  };
+};
 
 async function transaction<T>(setup: (c: PoolClient) => Promise<void>, fn: (db: Db) => Promise<T>): Promise<T> {
   const c = await pool().connect();
